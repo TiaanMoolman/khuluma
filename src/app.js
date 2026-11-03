@@ -116,8 +116,9 @@ let log=Object.assign(LOGDEF(),ls.get('khuluma.log',{}));
 if(!Array.isArray(log.zones)||log.zones.length!==9) log.zones=LOGDEF().zones;
 if(!Array.isArray(log.recent)) log.recent=[];
 if(!log.next||typeof log.next!=='object') log.next={};
-function save(){ls.set('khuluma.v1',settings);ls.set('khuluma.custom',custom);ls.set('khuluma.ov',ov);ls.set('khuluma.scenes',scenesC);}
-let logTimer=0; function saveLog(){clearTimeout(logTimer);logTimer=setTimeout(()=>ls.set('khuluma.log',log),400);}
+const cloudChanged=k=>{ try{ window.khulumaCloud&&window.khulumaCloud.changed(k); }catch(e){} };
+function save(quiet){ls.set('khuluma.v1',settings);ls.set('khuluma.custom',custom);ls.set('khuluma.ov',ov);ls.set('khuluma.scenes',scenesC); if(!quiet) cloudChanged('board');}
+let logTimer=0; function saveLog(){clearTimeout(logTimer);logTimer=setTimeout(()=>{ ls.set('khuluma.log',log); cloudChanged('log'); },400);}
 
 const gaze=()=>settings.layout==='gaze'||settings.cvi;
 let view=gaze()?'home':'core', hist=[], page=0, pages=1, msg=[], lastPType='mouse', editing=false, paused=false, painPart=null, lastAdd=0, typed='';
@@ -513,7 +514,7 @@ function activate(el){
 }
 const settingsOpen=()=>!$('#settings').hidden||!$('#editor').hidden||!$('#sceneEd').hidden;
 const practiceOpen=()=>!$('#practice').hidden;
-const overlayOpen=()=>settingsOpen()||practiceOpen();
+const overlayOpen=()=>settingsOpen()||practiceOpen()||!$('#auth').hidden;
 
 document.addEventListener('pointerdown',e=>{
   lastPType=e.pointerType||'mouse';
@@ -648,9 +649,12 @@ $('#gear2').addEventListener('click',()=>toast('Press and hold for 1.5 seconds t
 
 // ---------- settings ----------
 function showTab(name){ $$('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.tab===name)); $$('[data-panel]').forEach(p=>p.hidden=p.dataset.panel!==name);
-  if(name==='insights') renderInsights(); if(name==='training') renderZoneMap(); if(name==='board'){ renderGramDemo(); renderCoreMap(); } if(name==='personal'){ renderSceneList(); renderRecList(); } }
+  if(name==='account') cloudChanged('account-tab'); if(name==='insights') renderInsights(); if(name==='training') renderZoneMap(); if(name==='board'){ renderGramDemo(); renderCoreMap(); } if(name==='personal'){ renderSceneList(); renderRecList(); } }
 $$('.tab').forEach(t=>t.addEventListener('click',()=>showTab(t.dataset.tab)));
-function openSettings(tab){ stopScan(); stopSpot(); startDwell(null); stopAll(); syncSettings(); $('#settings').hidden=false; showTab(typeof tab==='string'?tab:(($$('.tab').find(t=>t.getAttribute('aria-selected')==='true')||{dataset:{tab:'access'}}).dataset.tab)); }
+function openSettings(tab){ stopScan(); stopSpot(); startDwell(null); stopAll(); syncSettings(); $('#settings').hidden=false;
+  let name=typeof tab==='string'?tab:(($$('.tab').find(t=>t.getAttribute('aria-selected')==='true')||{dataset:{tab:'access'}}).dataset.tab);
+  if(role==='parent'&&($$('.tab').find(t=>t.dataset.tab===name)||{dataset:{}}).dataset.tier==='therapist') name='personal';
+  showTab(name); }
 function closeSettings(){ $('#settings').hidden=true; save(); renderAll(); applyMode(); }
 $('#closeSettings').addEventListener('click',closeSettings);
 $('#lang').innerHTML=Object.entries(LANGS).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('');
@@ -737,7 +741,11 @@ $('#startEdit').addEventListener('click',startEditing);
 $('#editDone').addEventListener('click',stopEditing);
 $('#addWord').addEventListener('click',()=>openEditor(null));
 $('#edGroup').innerHTML=PERSONAL.map(([g,e,n])=>`<option value="${g}">${e} ${n[0]}</option>`).join('');
+// signed-in parents may add and change personal words; the therapist sets up everything else
+let role='';
+function setRole(r){ role=r||''; document.documentElement.classList.toggle('role-parent',role==='parent'); }
 function openEditor(key){
+  if(role==='parent'&&key&&!key.startsWith('mine:')){ toast('The therapist sets up this button. You can add and change personal words.'); return; }
   if(key&&key.startsWith('typed:')) return;
   const isNew=!key, it=isNew?{key:null,e:'💛',w:['',''],c:'n',custom:true}:getItem(key); if(!it) return;
   const cw=key&&key.startsWith('mine:')?custom.find(z=>'mine:'+z.id===key):null;
@@ -994,6 +1002,16 @@ $('#resetZones').addEventListener('click',()=>{ log.zones=LOGDEF().zones; saveLo
 async function wake(){ try{ await navigator.wakeLock?.request('screen'); }catch(e){} }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') wake(); });
 let rz=0; addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(()=>{ if(!practiceOpen()) renderBoard(); if(settings.mode==='scan'&&!overlayOpen()) startScan(); },200); });
+window.__khulumaApp={
+  getData:()=>({settings,custom,ov,scenes:scenesC,log}),
+  async setData(d,keepLog){
+    settings=Object.assign({},DEF,d.settings||{}); if(!LANGS[settings.lang]) settings.lang='en'; if(!GRID_IDS.includes(settings.grid)) settings.grid='8x6';
+    custom=(d.custom||[]).map(c=>Object.assign({group:'family',audioL:{}},c,{audio:''})); ov=d.ov||{}; scenesC=d.scenes||[];
+    if(!keepLog) log=Object.assign(LOGDEF(),d.log||{});
+    cleanLegacy(false); recByWord=null; msg=[]; save(true); ls.set('khuluma.log',log);
+    await preloadMedia(); view=gaze()?'home':'core'; hist=[]; syncSettings(); renderAll(); applyMode(); },
+  usedMedia, idb, mediaURL, toast, setRole, openSettings, showTab, esc, renderAll, inClaudeFrame,
+  freshLocal:()=>{ ls.set('khuluma.v1',DEF); }, LOGDEF };
 window.__khuluma={compose,ITEMS,getItem,go:v=>{go(v);},suggestions,fresh,get msg(){return msg;},set msg(v){msg=v;},get ov(){return ov;},get custom(){return custom;},refreshMsg};
 (async()=>{ renderAll(); applyMode(); wake(); await idb.open(); await preloadMedia(); renderAll(); applyMode(); purgeMedia();
   if(recReset) setTimeout(()=>toast('Recordings were cleared so English and Afrikaans stay separate. Record each word again with the board in its own language.'),800); })();

@@ -405,6 +405,31 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
 .cvi.bubble.bubble-light .tile .lbl,.cvi.bubble.bubble-light .yn .lbl{color:#000}
 .cvi.bubble.bubble-hide .tile .lbl,.cvi.bubble.bubble-hide .yn .lbl{color:#000}
 .cvi.bubble.bubble-hide.bubble-light .tile .lbl,.cvi.bubble.bubble-hide.bubble-light .yn .lbl{color:#fff}
+
+/* accounts */
+.role-parent [data-tier="therapist"]{display:none!important}
+.auth-sheet{max-width:520px;padding-block:clamp(16px,6vh,64px)}
+.auth-sheet .brand{display:flex;align-items:center;gap:12px}
+.auth-sheet .brand b{font-family:Lexend,system-ui,sans-serif;font-size:1.5rem;color:var(--accent)}
+.auth-sheet .bubble-logo{width:44px;height:44px;border-radius:14px 14px 14px 4px;background:var(--accent);display:grid;place-items:center;color:#fff;font:700 1.2rem Lexend,system-ui,sans-serif}
+.fld{display:grid;gap:6px;margin-top:12px}
+.fld label{font-weight:600;font-size:.92rem}
+.fld input,.fld select{font:inherit;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%;box-sizing:border-box}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:4px}
+.seg button{border:0;background:transparent;padding:10px;border-radius:10px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.chk{display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-size:.92rem;line-height:1.4}
+.chk input{margin-top:3px;width:20px;height:20px;flex:none}
+.err{color:#b3261e;font-size:.9rem;margin:10px 0 0;min-height:1em}
+.linkbtn{background:none;border:0;color:var(--accent);font-weight:600;padding:6px 0;text-decoration:underline}
+.kid{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--bg);border-radius:14px;padding:12px 14px}
+.kid.on{outline:3px solid var(--accent)}
+.kid .who{display:flex;flex-direction:column;gap:2px;min-width:0}
+.kid .who b{font-size:1.05rem}
+.kid .acts{display:flex;gap:8px;flex-wrap:wrap}
+.pill{display:inline-block;font-size:.75rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:99px;background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+.invite-link{font-family:ui-monospace,monospace;font-size:.82rem;word-break:break-all;background:var(--bg);border-radius:10px;padding:10px;margin-top:8px;user-select:all}
+#syncDot{font-size:.8rem;color:var(--muted)}
 </style>
 
 <div id="app">
@@ -446,13 +471,14 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
       <button class="btn primary" id="closeSettings">Back to board</button>
     </header>
     <div class="tabs" role="tablist">
-      <button class="tab" role="tab" data-tab="access" aria-selected="true">Access</button>
-      <button class="tab" role="tab" data-tab="vision">Vision &amp; CVI</button>
-      <button class="tab" role="tab" data-tab="board">Board &amp; language</button>
+      <button class="tab" role="tab" data-tier="therapist" data-tab="access" aria-selected="true">Access</button>
+      <button class="tab" role="tab" data-tier="therapist" data-tab="vision">Vision &amp; CVI</button>
+      <button class="tab" role="tab" data-tier="therapist" data-tab="board">Board &amp; language</button>
       <button class="tab" role="tab" data-tab="personal">Photos, voices &amp; scenes</button>
-      <button class="tab" role="tab" data-tab="training">Gaze training</button>
+      <button class="tab" role="tab" data-tier="therapist" data-tab="training">Gaze training</button>
       <button class="tab" role="tab" data-tab="insights">Insights</button>
-      <button class="tab" role="tab" data-tab="setup">Setup &amp; backup</button>
+      <button class="tab" role="tab" data-tier="therapist" data-tab="setup">Setup &amp; backup</button>
+      <button class="tab" role="tab" data-tab="account">Account</button>
     </div>
 
     <div data-panel="access" class="panel">
@@ -534,11 +560,13 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
       </div>
     </div>
 
+    <div data-panel="account" class="panel" hidden><div id="acct" class="panel"></div></div>
+
     <div data-panel="personal" class="panel" hidden>
       <div class="card">
         <h2>Personal pages</h2>
         <p class="note-text" style="margin:0 0 12px">Add the child's family names, friends, favourite foods, places, shows, school and shops. Each word can have a real photo and a family member's recorded voice.</p>
-        <div class="btns"><button class="btn primary" id="addWord">Add a personal word</button><button class="btn" id="startEdit">Edit buttons on the board</button></div>
+        <div class="btns"><button class="btn primary" id="addWord">Add a personal word</button><button class="btn" data-tier="therapist" id="startEdit">Edit buttons on the board</button></div>
         <p class="note-text">To add a voice: edit a button and press <b>Record now</b>, then say the word. Inside the Claude app the microphone is not available, so choose a voice memo file instead, or use Khuluma as its own website (Setup &amp; backup).</p>
       </div>
       <div class="card">
@@ -546,13 +574,13 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
         <p class="note-text" style="margin:0 0 6px" id="recWhere"></p>
         <div class="slist" id="recList"></div>
       </div>
-      <div class="card">
+      <div class="card" data-tier="therapist">
         <h2>Scenes from your photos</h2>
         <p class="note-text" style="margin:0 0 12px">Photograph the child's real kitchen, bedroom or classroom and place talking hotspots on it.</p>
         <div class="btns"><button class="btn primary" id="newScene">Make a scene from a photo</button></div>
         <div class="slist" id="sceneList"></div>
       </div>
-      <div class="card">
+      <div class="card" data-tier="therapist">
         <h2>Voice</h2>
         <div class="row"><label for="voice">Computer voice</label><select id="voice"></select><button class="btn" id="testVoice">Test</button></div>
         <div class="row"><label for="rate">Speaking speed</label><input type="range" id="rate" min="0.5" max="1.4" step="0.05"><output id="rateOut"></output></div>
@@ -669,6 +697,8 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
   <div class="stage" id="stage"></div>
 </section>
 
+<section id="auth" class="overlay" hidden aria-label="Sign in"><div class="sheet auth-sheet" id="authBody"></div></section>
+
 <div id="toast" role="status"></div>
 
 <script>
@@ -676,5 +706,6 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
 "use strict";
 //@@VOCAB@@
 //@@APP@@
+//@@CLOUD@@
 })();
 </script>

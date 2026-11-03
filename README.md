@@ -19,9 +19,14 @@ Recording a voice with **Record now** needs HTTPS, which Vercel provides.
 On the iPad: open the site in Safari › Share › Add to Home Screen.
 On the Mac: open the site in Safari › File › Add to Dock.
 
+## Therapist and parent logins
+
+Therapists create accounts, add children and invite parents and other therapists by link. A parent signs in once on the child's iPad, and the board then syncs and keeps working offline.
+To switch this on, follow [supabase/SETUP.md](supabase/SETUP.md). Until then, Khuluma works on each device without an account.
+
 ## Edit it
 
-The source is in `src/`: `vocab.js` (words, translations, grammar), `app.js` (the board), `shell.html` and `style.css` (layout and design).
+The source is in `src/`: `vocab.js` (words, translations, grammar), `app.js` (the board), `shell.html` and `style.css` (layout and design), `cloud.js` (accounts and sync).
 After changing them, run `python3 src/build.py` to rebuild `index.html`.
 
 The Afrikaans vocabulary and sentence rules should be checked by a speech-language therapist before clinical use.
