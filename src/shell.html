@@ -403,6 +403,8 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
 .cvi.bubble .tile .lbl,.cvi.bubble .yn .lbl{text-shadow:var(--bubble);color:#fff;padding:calc(var(--bpad,10px) + 2%) calc(var(--bpad,10px) + 4%);overflow:visible;letter-spacing:.02em}
 .cvi.bubble .tile{overflow:visible}
 .cvi.bubble.bubble-light .tile .lbl,.cvi.bubble.bubble-light .yn .lbl{color:#000}
+.cvi.bubble.bubble-hide .tile .lbl,.cvi.bubble.bubble-hide .yn .lbl{color:#000}
+.cvi.bubble.bubble-hide.bubble-light .tile .lbl,.cvi.bubble.bubble-hide.bubble-light .yn .lbl{color:#fff}
 </style>
 
 <div id="app">
@@ -487,6 +489,7 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
         <div class="row"><label for="bOut">Outline width</label><input type="range" id="bOut" min="2" max="16" step="1"><output id="bOutOut"></output></div>
         <div class="row"><label for="bGap">Gap width<small>Space between the letters and the outline</small></label><input type="range" id="bGap" min="0" max="14" step="1"><output id="bGapOut"></output></div>
         <div class="row"><label for="bLight">Light word background<small>Black word on white inside the outline, instead of white on black</small></label><span></span><input type="checkbox" id="bLight"></div>
+        <div class="row"><label for="bHide">Hide the letters<small>Shows only the outline shape of the word, for word-shape practice. The word is still spoken.</small></label><span></span><input type="checkbox" id="bHide"></div>
         <div class="row"><label for="cviFont">Word font<small>Simple, rounded letters are easiest to recognise</small></label><select id="cviFont"><option value="nunito">Rounded bold (Nunito)</option><option value="varela">Rounded (Varela Round)</option><option value="andika">Beginning reader (Andika)</option><option value="atkinson">Low vision (Atkinson Hyperlegible)</option></select><span></span></div>
         <div class="row"><label for="cviText">Word size</label><input type="range" id="cviText" min="70" max="160" step="10"><output id="cviTextOut"></output></div>
         <div class="row"><label for="lookSpeak">Say the word when the child looks at it<small>Hearing the word helps when seeing it is hard. Works with eye tracking and app dwell</small></label><span></span><input type="checkbox" id="lookSpeak"></div>

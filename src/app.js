@@ -67,7 +67,7 @@ const LEVELS=[
 const GRID_IDS=GRIDS.map(g=>g[0]);
 const DEF={mode:'ipad',dwell:1200,scan:1500,guard:700,grid:'8x6',lang:'en',lang2:'',showL2:false,labels:true,speakEach:true,hc:false,voice:'',rate:0.9,
   psize:'220',restBtn:true,skipWeak:false,partner:false,simpleBody:false,mirror:true,grammar:true,hs:'124',layout:'core',
-  cvi:false,cviGrid:'2x1',cviColour:'#ffd400',sil:false,motion:'gentle',spotMs:3500,field:'centre',lookSpeak:false,suggest:true,bubble:false,bOut:8,bGap:5,bLight:false,cviFont:'nunito',cviText:110};
+  cvi:false,cviGrid:'2x1',cviColour:'#ffd400',sil:false,motion:'gentle',spotMs:3500,field:'centre',lookSpeak:false,suggest:true,bubble:false,bOut:8,bGap:5,bLight:false,bHide:false,cviFont:'nunito',cviText:110};
 const CVI_FONTS={nunito:'"Nunito",system-ui,sans-serif',varela:'"Varela Round",system-ui,sans-serif',andika:'"Andika",system-ui,sans-serif',atkinson:'"Atkinson Hyperlegible",system-ui,sans-serif'};
 // Word bubbling: copies of the word stacked in rings. The gap ring (background colour) sits on top of the outline ring (highlight colour).
 function bubbleShadow(gap,out,col,bg){
@@ -75,7 +75,7 @@ function bubbleShadow(gap,out,col,bg){
   return [...(gap>0?rings(1,gap,bg):[]),...rings(Math.max(1,gap),gap+out,col)].join(',');
 }
 function applyCviText(el){ el.style.setProperty('--cvi-font',CVI_FONTS[settings.cviFont]||CVI_FONTS.nunito); el.style.setProperty('--cvi-scale',settings.cviText/100);
-  el.classList.toggle('bubble',!!settings.bubble); el.classList.toggle('bubble-light',!!settings.bLight);
+  el.classList.toggle('bubble',!!settings.bubble); el.classList.toggle('bubble-light',!!settings.bLight); el.classList.toggle('bubble-hide',!!(settings.bubble&&settings.bHide));
   if(settings.bubble){ el.style.setProperty('--bubble',bubbleShadow(settings.bGap,settings.bOut,settings.cviColour,settings.bLight?'#fff':'#000')); el.style.setProperty('--bpad',(settings.bGap+settings.bOut)+'px'); } }
 const CVI_COLOURS=[['#ff2a2a','Red'],['#ffd400','Yellow'],['#ff8c00','Orange'],['#39e75f','Green'],['#2f8cff','Blue'],['#ff4fd8','Pink'],['#ffffff','White']];
 const ls={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
@@ -624,7 +624,7 @@ $('#closeSettings').addEventListener('click',closeSettings);
 $('#lang').innerHTML=Object.entries(LANGS).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('');
 $('#gridSize').innerHTML=GRIDS.map(([v,n])=>`<option value="${v}">${n}</option>`).join('');
 const fmt={dwell:v=>(v/1000).toFixed(1)+' s',scan:v=>(v/1000).toFixed(1)+' s',guard:v=>v?(v/1000).toFixed(1)+' s':'Off',rate:v=>Number(v).toFixed(2)+'×'};
-const BOOLS=['labels','speakEach','hc','showL2','restBtn','skipWeak','simpleBody','mirror','grammar','sil','lookSpeak','suggest','bubble','bLight'];
+const BOOLS=['labels','speakEach','hc','showL2','restBtn','skipWeak','simpleBody','mirror','grammar','sil','lookSpeak','suggest','bubble','bLight','bHide'];
 fmt.spotMs=v=>(v/1000).toFixed(1)+' s';
 function syncSettings(){
   $$('#modes .mode').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===settings.mode));
@@ -655,7 +655,7 @@ $('#layout').addEventListener('change',e=>{ settings.layout=e.target.value; hist
   if(gaze()){ view='home'; if(['8x6','10x6','6x5'].includes(settings.grid)) settings.grid='4x4'; } else { view='core'; }
   save(); syncSettings(); renderCoreMap(); });
 $('#hs').addEventListener('change',e=>{ settings.hs=e.target.value; save(); });
-BOOLS.forEach(k=>$('#'+k).addEventListener('change',e=>{ settings[k]=e.target.checked; save(); if(k==='grammar') renderGramDemo(); if(['sil','bubble','bLight'].includes(k)) renderPreview(); }));
+BOOLS.forEach(k=>$('#'+k).addEventListener('change',e=>{ settings[k]=e.target.checked; save(); if(k==='grammar') renderGramDemo(); if(['sil','bubble','bLight','bHide'].includes(k)) renderPreview(); }));
 $('#partnerOn').addEventListener('change',e=>{ settings.partner=e.target.checked; save(); });
 $('#cvi').addEventListener('change',e=>{ settings.cvi=e.target.checked; hist=[]; page=0; view=gaze()?'home':'core';
   if(settings.cvi){ if(settings.dwell<1800) settings.dwell=2000; settings.lookSpeak=true; } save(); syncSettings(); });
