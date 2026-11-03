@@ -1,0 +1,665 @@
+<title>Khuluma AAC</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Khuluma">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Atkinson+Hyperlegible:wght@400;700&family=Lexend:wght@500;600;700&display=swap">
+<style>
+/* Khuluma visual system.
+   Layout: speech-bubble message bar across the top, a "Next" prediction row under it, a slim menu rail on the left and the board filling the rest.
+   Cards are quiet white picture cards; the Fitzgerald word-class colour lives only in each card's label band, so colour carries meaning without crowding the picture.
+   CVI mode (.cvi) swaps everything to a black field with one bright, child-chosen highlight colour. */
+:root{
+  --bg:#eef1f5; --surface:#ffffff; --surface-2:#f5f7fa; --ink:#16202b; --muted:#5b6878; --line:#dbe1e8;
+  --accent:#1d6b57; --accent-ink:#ffffff; --accent-soft:#d9ece6; --ring:#f07a1a; --scan:#ffd000; --fig:#cdd7e1; --fig-line:#a3b2c2;
+  --shadow:0 1px 0 rgba(22,32,43,.05),0 5px 14px rgba(22,32,43,.07);
+  --fk-p:#e9be14; --fk-v:#35a24a; --fk-d:#3a7fd0; --fk-n:#ec7f22; --fk-s:#e0599a; --fk-q:#8b5bd0; --fk-x:#d83a3a; --fk-w:#8a97a6;
+  --s0:#2f9a57; --s1:#86b02f; --s2:#e3a628; --s3:#e46b26; --s4:#d23a3a;
+  --band:22%; --cvi:#ffd400;
+  --f-ui:"Lexend","Avenir Next","Segoe UI",system-ui,sans-serif;
+  --f-lbl:"Andika","Atkinson Hyperlegible","Verdana",system-ui,sans-serif;
+  --rad:20px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e141b; --surface:#18212b; --surface-2:#1d2732; --ink:#eef3f8; --muted:#9aa8b8; --line:#2a3644;
+  --accent:#4cc3a1; --accent-ink:#06231b; --accent-soft:#173a31; --ring:#ffa23d; --scan:#ffd84a; --fig:#2c3a48; --fig-line:#46586b;
+  --shadow:0 1px 0 rgba(0,0,0,.25); --fk-w:#7d8a99; --band:30%; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0e141b; --surface:#18212b; --surface-2:#1d2732; --ink:#eef3f8; --muted:#9aa8b8; --line:#2a3644;
+  --accent:#4cc3a1; --accent-ink:#06231b; --accent-soft:#173a31; --ring:#ffa23d; --scan:#ffd84a; --fig:#2c3a48; --fig-line:#46586b;
+  --shadow:0 1px 0 rgba(0,0,0,.25); --fk-w:#7d8a99; --band:30%; color-scheme:dark;
+}
+/* CVI: black field, nothing competing, one bright highlight colour chosen for the child */
+.cvi{--bg:#000; --surface:#000; --surface-2:#0b0b0b; --ink:#ffffff; --muted:#b9b9b9; --line:#262626; --accent:var(--cvi); --accent-ink:#000; --accent-soft:#111;
+  --ring:var(--cvi); --shadow:none; --fig:#1a1a1a; --fig-line:#444; color-scheme:dark}
+[hidden]{display:none!important}
+html{box-sizing:border-box;height:100%}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--f-ui);
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;overflow:hidden}
+body.cvi-on{background:#000}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+#app{height:100%;display:grid;gap:10px;background:var(--bg);color:var(--ink);
+  grid-template-columns:clamp(78px,8.5vw,104px) minmax(0,1fr);
+  grid-template-rows:auto auto auto minmax(0,1fr);
+  grid-template-areas:"partner partner" "msg msg" "next next" "nav board";
+  padding-block:10px;
+  padding-left:max(12px, env(safe-area-inset-left, 0px));
+  padding-right:max(12px, env(safe-area-inset-right, 0px));}
+#app.editing{padding-top:62px}
+#app.gaze{grid-template-columns:minmax(0,1fr) clamp(104px,12vw,150px);grid-template-areas:"partner partner" "msg msg" "next next" "board yesno";gap:14px}
+#app.gaze #nav{display:none}
+#yesno{grid-area:yesno;display:none;flex-direction:column;gap:16px;min-height:0}
+#app.gaze #yesno{display:flex}
+#app.cvi #next,#app.cvi .ctl.minor{display:none}
+
+#partner{grid-area:partner;transform:rotate(180deg);background:var(--ink);color:var(--bg);border-radius:14px;padding:8px 18px;
+  font-family:var(--f-lbl);font-weight:700;font-size:clamp(1.1rem,2.4vw,1.7rem);min-height:46px;display:flex;align-items:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#partner .ph{opacity:.55;font-weight:400}
+
+/* message bar: speech bubble + round speak */
+#msgbar{grid-area:msg;display:flex;align-items:stretch;gap:10px;min-width:0;height:clamp(80px,11.5vh,108px)}
+#msg{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:4px;position:relative;
+  background:var(--surface);border:0;border-radius:26px 26px 26px 8px;box-shadow:var(--shadow);padding:8px 18px;text-align:left}
+#msg::after{content:"";position:absolute;left:-2px;bottom:-9px;width:22px;height:18px;background:var(--surface);clip-path:polygon(0 0,100% 0,0 100%)}
+.cvi #msg{border:3px solid #fff;border-radius:22px}
+.cvi #msg::after{display:none}
+#msg .chips{display:flex;align-items:center;gap:6px;overflow-x:auto;min-width:0}
+#msg .ph{color:var(--muted);font-family:var(--f-lbl);font-size:1.15rem}
+#msg .says{font-family:var(--f-lbl);font-size:1.05rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#msg .says b{color:var(--ink);font-size:1.12rem}
+.cvi #msg .says b{color:var(--cvi)}
+.chip{flex:none;display:flex;align-items:center;gap:5px;padding:3px 10px 3px 6px;border-radius:999px;background:var(--surface-2);border:2px solid var(--fk)}
+.chip .e{font-size:1.35rem;line-height:1}
+.chip img{width:28px;height:28px;object-fit:cover;border-radius:50%}
+.chip .w{font-family:var(--f-lbl);font-weight:700;font-size:.95rem;white-space:nowrap}
+.ctl{flex:none;width:clamp(64px,7vw,92px);border-radius:22px;border:0;background:var(--surface);box-shadow:var(--shadow);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-weight:600;font-size:.82rem;position:relative;overflow:hidden;color:var(--ink)}
+.cvi .ctl{border:3px solid #333}
+.ctl .i{font-size:1.45rem;line-height:1}
+.ctl.speak{width:auto;aspect-ratio:1;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:.95rem;font-weight:700}
+.ctl.speak .i{font-size:1.9rem}
+#langBtn .i{font-size:.9rem;font-weight:700;letter-spacing:.04em}
+#gear2,#backTop,#restTop{display:none}
+#app.gaze #backTop.on,#app.gaze #restTop.on{display:flex}
+#app.gaze #gear2{display:flex;width:56px;flex:none;border-radius:18px;border:2px dashed var(--line);background:transparent;color:var(--muted);
+  flex-direction:column;align-items:center;justify-content:center;font-size:.6rem;line-height:1.1;text-align:center;position:relative;overflow:hidden}
+#restTop[aria-pressed="true"]{background:color-mix(in srgb, var(--ring) 30%, var(--surface))}
+
+/* Next: predicted words */
+#next{grid-area:next;display:flex;align-items:stretch;gap:8px;height:clamp(58px,8vh,78px);min-width:0}
+#next .nlabel{flex:none;display:flex;flex-direction:column;justify-content:center;width:clamp(78px,8.5vw,104px);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;line-height:1.2;padding-left:4px}
+#next .nlabel b{font-size:.68rem;letter-spacing:0;text-transform:none;font-weight:400}
+#next .nrow{flex:1;min-width:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+#app.gaze #next .nlabel{display:none}
+#app.gaze #next{height:clamp(72px,10vh,96px)}
+.nx{--fk:var(--fk-n);display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:16px;border:0;background:var(--surface);box-shadow:var(--shadow);position:relative;overflow:hidden;min-width:0}
+.nx::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--fk)}
+.nx .e{font-size:clamp(1.3rem,3.2vh,1.9rem);flex:none;padding-left:4px}
+.nx .w{font-family:var(--f-lbl);font-weight:700;font-size:clamp(.85rem,1.4vw,1.1rem);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nx.blank{background:transparent;box-shadow:none;border:2px dashed var(--line)}
+.nx.blank::before{display:none}
+
+/* left menu rail */
+#nav{grid-area:nav;display:flex;flex-direction:column;gap:7px;min-height:0}
+.nv{flex:1;min-height:0;border-radius:18px;border:0;background:var(--surface);box-shadow:var(--shadow);color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;font-weight:600;font-size:clamp(.64rem,1vw,.82rem);line-height:1.1;text-align:center;position:relative;overflow:hidden;padding:3px}
+.nv .i{font-size:clamp(1.15rem,2.5vh,1.65rem);line-height:1}
+.nv[aria-current="true"]{background:var(--accent);color:var(--accent-ink)}
+.nv.hold{background:transparent;box-shadow:none;color:var(--muted);border:2px dashed var(--line);flex:.7}
+.nv.hold::before,#gear2::before,.holdbtn::before{content:"";position:absolute;inset:0;background:var(--accent);opacity:.28;transform-origin:left;transform:scaleX(var(--p,0))}
+
+/* board */
+#board{grid-area:board;display:flex;gap:10px;min-height:0;min-width:0}
+#grid{flex:1;min-width:0;display:grid;gap:8px;
+  grid-template-columns:repeat(var(--c,4),minmax(0,1fr));grid-template-rows:repeat(var(--r,3),minmax(0,1fr))}
+#app.gaze #grid{gap:18px}
+#app.cvi #grid{gap:28px}
+#app.cvi.field-left #board{padding-right:34%}
+#app.cvi.field-right #board{padding-left:34%}
+#app.cvi.field-lower #board{padding-top:18vh}
+#app.cvi.field-centre #board{padding-inline:12%}
+
+/* picture card: picture on top, word-class colour only in the label band */
+.tile{--fk:var(--fk-n);position:relative;container-type:size;border-radius:var(--rad);border:0;background:var(--surface);box-shadow:var(--shadow);
+  display:grid;grid-template-rows:minmax(0,1fr) auto;padding:0;min-height:0;min-width:0;overflow:hidden;transition:transform .12s;text-align:center}
+.tile .pic{display:grid;place-items:center;min-height:0;padding:4% 4% 2%}
+.tile .sym{font-size:min(52cqh,56cqw);line-height:1}
+.tile .pic img{width:min(62cqh,86cqw);height:min(58cqh,86cqw);object-fit:cover;border-radius:12px}
+.tile .lbl{display:block;background:color-mix(in srgb, var(--fk) var(--band), var(--surface));border-top:4px solid var(--fk);
+  font-family:var(--f-lbl);font-weight:700;font-size:clamp(11px,min(14cqh,12.5cqw),36px);line-height:1.08;padding:3% 4% 4%;overflow-wrap:anywhere}
+.tile .lbl small{display:block;font-weight:400;font-size:.72em;color:var(--muted)}
+.tile .vo{position:absolute;top:5px;right:7px;font-size:min(11cqh,18px)}
+.tile .cnt{position:absolute;top:6px;right:9px;font-size:min(11cqh,15px);font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+.tile.folder{--fk:var(--accent)}
+.tile.folder .pic{background:var(--accent-soft)}
+.tile.folder .lbl{background:var(--accent);color:var(--accent-ink);border-top:0}
+.tile.empty{background:transparent;box-shadow:none;border:2px dashed var(--line);opacity:.5}
+.tile.weak{background:transparent;box-shadow:none}
+.tile.note{background:transparent;box-shadow:none;border:2px dashed var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:8px}
+.tile.note .lbl{background:transparent;border:0;font-weight:400;color:var(--muted)}
+.fk-p{--fk:var(--fk-p)}.fk-v{--fk:var(--fk-v)}.fk-d{--fk:var(--fk-d)}.fk-n{--fk:var(--fk-n)}.fk-s{--fk:var(--fk-s)}.fk-q{--fk:var(--fk-q)}.fk-x{--fk:var(--fk-x)}.fk-w{--fk:var(--fk-w)}
+.nolabels .tile:not(.note):not(.folder) .lbl{display:none}
+.nolabels .tile:not(.folder) .sym{font-size:min(68cqh,64cqw)}
+.hc .tile{box-shadow:none;outline:3px solid var(--fk);outline-offset:-3px}
+.editing .tile[data-act="tile"]{outline:3px dashed var(--accent);outline-offset:-7px}
+
+/* CVI cards: black, no band, white word; the chosen colour appears only on the item being looked at */
+.cvi .tile{background:#000;border:3px solid #1f1f1f;box-shadow:none;outline:0}
+.cvi .tile .lbl{background:transparent;border:0;color:#fff;font-size:clamp(14px,min(15cqh,13cqw),44px)}
+.cvi .tile .lbl small{color:#aaa}
+.cvi .tile.folder .pic{background:transparent}
+.cvi .tile.folder .lbl{background:transparent;color:#fff}
+.cvi .tile.empty,.cvi .tile.weak{border-color:transparent}
+.cvi.sil .tile .sym,.cvi.sil .hot .sym{color:transparent;text-shadow:0 0 0 var(--cvi)}
+.cvi.motion-gentle .tile .sym,.cvi.motion-gentle .yn .sym{animation:breathe 2.6s ease-in-out infinite}
+@keyframes breathe{50%{transform:scale(1.08)}}
+.cvi .spot,.cvi .dwell.dwelling,.cvi.mode-ipad-hover .dwell:hover{border-color:var(--cvi)!important;outline:0!important;box-shadow:0 0 0 5px var(--cvi),0 0 46px 10px color-mix(in srgb, var(--cvi) 55%, transparent)!important}
+.cvi .spot .sym{animation:spotpop 1s ease-in-out infinite}
+@keyframes spotpop{50%{transform:scale(1.14)}}
+
+#pager{display:flex;flex-direction:column;gap:8px;width:clamp(62px,7vw,90px)}
+.pg{flex:1;border-radius:20px;border:0;background:var(--surface);box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-weight:600;position:relative;overflow:hidden}
+.cvi .pg{border:3px solid #333}
+.pg .i{font-size:1.8rem;line-height:1}
+#dots{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;flex:none;padding:2px 0}
+#dots i{width:9px;height:9px;border-radius:50%;background:var(--line)}
+#dots i.on{background:var(--accent)}
+
+/* keyboard */
+#kbd{flex:1;min-width:0;min-height:0;display:grid;grid-template-rows:minmax(0,1.25fr) repeat(4,minmax(0,1fr));gap:8px}
+.krow{display:grid;gap:8px;min-height:0}
+.key{position:relative;border-radius:16px;border:0;background:var(--surface);box-shadow:var(--shadow);font-family:var(--f-lbl);font-weight:700;font-size:clamp(1rem,3.2vh,2rem);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;min-width:0}
+.key.wide{font-size:clamp(.8rem,2vh,1.1rem)}
+.key.go{background:var(--accent);color:var(--accent-ink)}
+.kpred{display:grid;grid-template-columns:minmax(0,1.3fr) repeat(5,minmax(0,1fr));gap:8px;min-height:0}
+.typed{border-radius:16px;border:3px solid var(--accent);background:var(--surface);display:flex;align-items:center;padding:0 14px;font-family:var(--f-lbl);font-weight:700;
+  font-size:clamp(1.1rem,3vh,1.8rem);overflow:hidden;white-space:nowrap}
+.typed .cur{display:inline-block;width:2px;height:1.1em;background:var(--ring);margin-left:2px;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* scenes */
+#scene{flex:1;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;position:relative}
+.sbox{position:relative;max-width:100%;max-height:100%;width:100%;height:100%;border-radius:var(--rad);overflow:hidden;box-shadow:var(--shadow)}
+.sbox.photo{width:auto;height:auto;background:#000}
+.sbox.photo img.bgimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.sc-kitchen{background:linear-gradient(180deg, color-mix(in srgb, #f3c969 34%, var(--surface)) 0 58%, color-mix(in srgb, #b97a4a 40%, var(--surface)) 58% 100%)}
+.sc-bath{background:repeating-linear-gradient(0deg, transparent 0 46px, color-mix(in srgb, #4aa3d9 30%, var(--surface)) 46px 48px),repeating-linear-gradient(90deg, transparent 0 46px, color-mix(in srgb, #4aa3d9 30%, var(--surface)) 46px 48px), color-mix(in srgb, #4aa3d9 16%, var(--surface))}
+.sc-bed{background:linear-gradient(180deg, color-mix(in srgb, #3b3f8f 40%, var(--surface)) 0 62%, color-mix(in srgb, #8a6a9e 34%, var(--surface)) 62% 100%)}
+.sc-park{background:linear-gradient(180deg, color-mix(in srgb, #7cc7f0 40%, var(--surface)) 0 55%, color-mix(in srgb, #5fb34a 44%, var(--surface)) 55% 100%)}
+.cvi .sbox:not(.photo){background:#000}
+.hot:not([class*="fk-"]){--fk:var(--fk-n)}
+.hot{position:absolute;transform:translate(-50%,-50%);width:var(--hs,120px);height:var(--hs,120px);border-radius:50%;
+  border:5px solid var(--fk);background:color-mix(in srgb, var(--surface) 86%, transparent);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px;overflow:visible}
+.cvi .hot{border-color:#333;background:#000}
+.hot .sym{font-size:calc(var(--hs,120px) * .44);line-height:1}
+.hot .lbl{position:absolute;top:calc(100% + 4px);left:50%;transform:translateX(-50%);white-space:nowrap;background:var(--surface);border:2px solid var(--fk);border-radius:999px;padding:2px 12px;
+  font-family:var(--f-lbl);font-weight:700;font-size:clamp(12px,1.4vw,17px)}
+.photo .hot{background:color-mix(in srgb, var(--surface) 20%, transparent);border-style:dashed}
+
+/* body map */
+#pain{flex:1;min-width:0;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:12px}
+.figwrap{min-height:0;display:flex;gap:10px;align-items:stretch;justify-content:center;background:var(--surface);box-shadow:var(--shadow);border-radius:var(--rad);padding:10px}
+.fig{position:relative;height:100%;aspect-ratio:1/2;max-width:calc(100% - 96px)}
+.fig svg{position:absolute;inset:0;width:100%;height:100%}
+.fig svg .b{fill:var(--fig);stroke:var(--fig-line);stroke-width:2}
+.part{position:absolute;border:3px dashed transparent;border-radius:14px;background:transparent;display:flex;align-items:center;justify-content:center;
+  font-family:var(--f-lbl);font-weight:700;font-size:clamp(10px,1.1vw,14px);line-height:1.05;text-align:center;color:var(--ink);overflow:hidden;padding:2px}
+.part span{background:color-mix(in srgb, var(--surface) 82%, transparent);border-radius:6px;padding:1px 4px}
+.part.sel{border-color:var(--fk-x);border-style:solid;background:color-mix(in srgb, var(--fk-x) 22%, transparent)}
+.sidecol{display:flex;flex-direction:column;gap:10px;width:86px;flex:none}
+.sidecol .tile{flex:1}
+.sideflag{font-size:.7rem;color:var(--muted);text-align:center;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.lvlpanel{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px}
+.lvlhead{font-family:var(--f-lbl);font-weight:700;font-size:clamp(1rem,1.8vw,1.35rem);background:var(--surface);box-shadow:var(--shadow);border-radius:var(--rad);padding:10px 16px;min-height:52px;display:flex;align-items:center;gap:10px}
+.lvls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));gap:10px;min-height:0}
+.lvl{--fk:var(--lv);position:relative;container-type:size;border-radius:var(--rad);border:0;border-left:8px solid var(--lv);background:var(--surface);box-shadow:var(--shadow);
+  display:flex;align-items:center;justify-content:center;gap:6%;padding:6px;overflow:hidden;min-height:0}
+.lvl svg{height:min(70cqh,40cqw);width:auto;flex:none}
+.lvl .lbl{font-family:var(--f-lbl);font-weight:700;font-size:clamp(13px,min(16cqh,10cqw),30px);line-height:1.1}
+.lvls.off .lvl{opacity:.35}
+
+/* yes / no column */
+.yn{--fk:var(--fk-s);flex:1;min-height:0;border-radius:var(--rad);border:0;background:var(--surface);box-shadow:var(--shadow);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;position:relative;overflow:hidden;border-bottom:10px solid var(--fk)}
+.cvi .yn{background:#000;border:3px solid #1f1f1f}
+.yn .sym{font-size:clamp(2.2rem,6vh,3.6rem)}
+.yn .lbl{font-family:var(--f-lbl);font-weight:700;font-size:clamp(1rem,2.2vw,1.7rem)}
+
+.paused #board,.paused #next,.paused #nav > :not(#restNav):not(.hold),.paused #yesno,.paused #msgbar > :not(#restTop):not(#gear2){opacity:.25;filter:grayscale(1)}
+#restNote{position:fixed;left:50%;top:45%;transform:translate(-50%,-50%);z-index:5;background:var(--surface);border:2px solid var(--ring);border-radius:var(--rad);
+  padding:16px 22px;font-size:1.2rem;font-weight:600;text-align:center;pointer-events:none;max-width:calc(100% - 32px)}
+.attn #app{animation:attn .5s ease-in-out 3}
+@keyframes attn{50%{box-shadow:inset 0 0 0 14px var(--ring)}}
+
+/* dwell + scan feedback */
+.dwell.dwelling{outline:5px solid var(--ring);outline-offset:-2px}
+.dwell::after{content:"";position:absolute;left:50%;top:50%;width:min(78%,140px);aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;
+  background:conic-gradient(var(--ring) calc(var(--p,0) * 1turn), transparent 0);
+  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 10px), #000 calc(100% - 9px));
+  mask:radial-gradient(farthest-side, transparent calc(100% - 10px), #000 calc(100% - 9px));
+  opacity:0;pointer-events:none}
+.dwell.dwelling::after{opacity:.95}
+.part.dwell::after{width:min(90%,90px)}
+.hot.dwell::after{width:100%}
+.hot.dwelling{outline:none;box-shadow:0 0 0 6px var(--ring)}
+.fired{animation:fire .35s ease-out}
+@keyframes fire{0%{scale:1}40%{scale:.93}100%{scale:1}}
+.scan-grp{outline:5px solid var(--scan)!important;outline-offset:-2px}
+.scan-hi{outline:8px solid var(--scan)!important;outline-offset:-4px;box-shadow:inset 0 0 0 12px color-mix(in srgb, var(--scan) 40%, transparent)!important}
+.mode-ipad .dwell:hover{outline:4px solid var(--ring);outline-offset:-2px}
+
+#editbar{position:fixed;left:0;right:0;top:0;z-index:15;display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--accent);color:var(--accent-ink);
+  padding-top:calc(10px + env(safe-area-inset-top, 0px));padding-bottom:10px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));font-weight:600}
+#editbar .btn{background:var(--accent-ink);color:var(--accent);border:0}
+
+/* overlays */
+.overlay{position:fixed;inset:0;z-index:20;background:var(--bg);overflow:auto;
+  padding-top:calc(16px + env(safe-area-inset-top, 0px));padding-bottom:calc(24px + env(safe-area-inset-bottom, 0px));
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));
+  -webkit-user-select:text;user-select:text}
+#settings,#editor,#sceneEd{--bg:#eef1f5;--surface:#fff;--ink:#16202b;--muted:#5b6878;--line:#dbe1e8;color:var(--ink)}
+.sheet{max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.panel{display:flex;flex-direction:column;gap:18px}
+.sheet header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sheet h1{font-size:1.6rem;margin:0;text-wrap:balance}
+.sheet h2{font-size:.78rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;position:sticky;top:0;background:var(--bg);padding-block:8px;z-index:2}
+.tab{padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-weight:600}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px;min-width:0}
+.modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.mode{display:flex;flex-direction:column;gap:4px;padding:12px;border-radius:14px;border:2px solid var(--line);background:var(--bg);text-align:left}
+.mode b{font-size:1rem}
+.mode span{font-family:"Atkinson Hyperlegible",system-ui,sans-serif;font-size:.88rem;color:var(--muted);line-height:1.35}
+.mode[aria-pressed="true"]{border-color:#1d6b57;box-shadow:inset 0 0 0 2px #1d6b57}
+.row{display:grid;grid-template-columns:minmax(0,250px) minmax(0,1fr) auto;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.row label{font-weight:600;font-size:.95rem}
+.row small{display:block;font-weight:400;color:var(--muted);font-family:"Atkinson Hyperlegible",system-ui,sans-serif;font-size:.8rem;margin-top:2px}
+.row output{font-variant-numeric:tabular-nums;min-width:64px;text-align:right;color:var(--muted)}
+input[type=range]{width:100%;accent-color:#1d6b57}
+select,input[type=text]{font:inherit;font-size:1rem;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%;min-width:0}
+input[type=checkbox]{width:22px;height:22px;accent-color:#1d6b57}
+.btn{padding:10px 16px;border-radius:12px;border:1px solid var(--line);background:var(--bg);font-weight:600;position:relative;overflow:hidden;color:var(--ink)}
+.btn.primary{background:#1d6b57;color:#fff;border-color:#1d6b57}
+.btn.danger{color:#d83a3a}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.note-text{font-family:"Atkinson Hyperlegible",system-ui,sans-serif;font-size:.9rem;color:var(--muted);line-height:1.45;margin:8px 0 0}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;font-family:"Atkinson Hyperlegible",system-ui,sans-serif;font-size:.88rem}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:6px;background:var(--fk)}
+.guide ol{margin:0;padding-left:1.3em;font-family:"Atkinson Hyperlegible",system-ui,sans-serif;line-height:1.5;display:grid;gap:6px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{background:var(--bg);border-radius:12px;padding:12px}
+.stat b{display:block;font-size:1.6rem;font-variant-numeric:tabular-nums}
+.stat span{font-size:.85rem;color:var(--muted)}
+.bars{display:grid;gap:6px}
+.bar{display:grid;grid-template-columns:minmax(0,150px) minmax(0,1fr) 40px;gap:10px;align-items:center;font-size:.9rem}
+.bar i{display:block;height:12px;border-radius:6px;background:#1d6b57}
+.bar em{font-style:normal;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.diary{width:100%;border-collapse:collapse;font-size:.9rem}
+.diary th,.diary td{text-align:left;padding:6px 8px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.diary th{color:var(--muted);font-weight:600;font-size:.8rem}
+.dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.zones{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;max-width:360px;aspect-ratio:4/3}
+.zone{border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-variant-numeric:tabular-nums;font-size:.85rem;background:var(--bg);border:1px solid var(--line)}
+.zone b{font-size:1rem}
+.zone.good{background:color-mix(in srgb, var(--s0) 30%, #fff)}
+.zone.mid{background:color-mix(in srgb, var(--s2) 30%, #fff)}
+.zone.weak{background:color-mix(in srgb, var(--s4) 30%, #fff)}
+.empty-state{color:var(--muted);background:var(--bg);border-radius:12px;padding:14px;font-size:.9rem}
+.scroll-x{overflow-x:auto}
+textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:10px;font-size:.85rem}
+.gram{display:grid;gap:8px;font-size:.92rem}
+.gram div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:12px;padding:8px 10px;background:var(--bg);border-radius:10px}
+.gram span:first-child{color:var(--muted)}
+.slist{display:grid;gap:8px;margin-top:12px}
+.slist div{display:flex;align-items:center;gap:10px;justify-content:space-between;background:var(--bg);border-radius:10px;padding:8px 10px}
+.coremap{display:grid;gap:3px;font-size:.72rem;max-width:100%;overflow-x:auto}
+.coremap span{border-radius:5px;padding:4px 2px;text-align:center;border-bottom:3px solid var(--fk);background:var(--bg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.swatches{display:flex;flex-wrap:wrap;gap:10px}
+.sw{width:52px;height:52px;border-radius:50%;border:3px solid var(--line);background:var(--c);position:relative}
+.sw[aria-pressed="true"]{box-shadow:0 0 0 4px #fff,0 0 0 7px var(--ink)}
+.preview-wrap{border-radius:16px;overflow:hidden;background:#000;padding:18px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;height:220px}
+.preview-wrap .tile{height:100%}
+
+/* editors */
+.ed{display:grid;grid-template-columns:200px minmax(0,1fr);gap:18px;align-items:start}
+.ed .preview{height:200px}
+.ed .fields{display:grid;gap:12px}
+.ed .fields label{font-weight:600;font-size:.9rem;display:grid;gap:6px}
+.media-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.media-row span{font-size:.85rem;color:var(--muted)}
+#seStage{position:relative;max-width:100%;border-radius:12px;overflow:hidden;background:var(--bg);border:1px dashed var(--line);min-height:160px;display:grid;place-items:center;cursor:crosshair}
+#seStage img{display:block;max-width:100%;max-height:60vh}
+#seStage .mk{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;border:4px solid #f07a1a;background:rgba(255,255,255,.3);pointer-events:none}
+#seStage .mk span{position:absolute;top:100%;left:50%;transform:translateX(-50%);white-space:nowrap;background:#fff;border-radius:6px;padding:1px 6px;font-size:.8rem;font-weight:600;margin-top:2px}
+#seStage .mk.pending{border-style:dashed}
+.sehot{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:10px}
+
+/* practice */
+#practice{padding:0;overflow:hidden}
+#practice .bar2{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+  padding-top:calc(10px + env(safe-area-inset-top, 0px));padding-bottom:10px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));
+  font-variant-numeric:tabular-nums;color:var(--muted);font-weight:600;z-index:3;background:var(--bg)}
+#practice .stage{position:absolute;inset:0;top:calc(64px + env(safe-area-inset-top, 0px))}
+.ptabs{display:flex;gap:6px}
+.ptab{padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-weight:600}
+.ptab[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+.holdbtn{position:relative;overflow:hidden;padding:10px 16px;border-radius:12px;border:2px dashed var(--line);background:var(--surface);color:var(--muted)}
+.explore{position:absolute;inset:12px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:14px}
+.ex{--fk:var(--fk-n);border-radius:28px;border:0;border-bottom:12px solid var(--fk);background:var(--surface);box-shadow:var(--shadow);font-size:min(18vh,18vw);display:grid;place-items:center;position:relative;overflow:hidden}
+.cvi .ex{background:#000;border:3px solid #222}
+.ex.bounce span{animation:bounce .7s ease-out;display:inline-block}
+@keyframes bounce{0%{transform:scale(1)}35%{transform:scale(1.35) rotate(-8deg)}70%{transform:scale(.95) rotate(4deg)}100%{transform:scale(1)}}
+#target{position:absolute;border-radius:50%;border:6px solid var(--ring);background:radial-gradient(circle, var(--ring) 0 18%, color-mix(in srgb,var(--ring) 22%, var(--surface)) 19% 100%);
+  display:grid;place-items:center;font-size:2.4rem;transition:left .25s ease, top .25s ease}
+#target.pop{animation:pop .3s ease-out}
+@keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.25)}100%{transform:scale(1)}}
+.choose{position:absolute;inset:12px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.choose .chosen{box-shadow:0 0 0 8px var(--s0)}
+
+#toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);z-index:40;
+  background:#16202b;color:#fff;padding:10px 16px;border-radius:12px;font-size:.95rem;max-width:calc(100% - 32px);opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.on{opacity:1}
+
+@media (max-width:760px){
+  #app{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto auto minmax(0,1fr);grid-template-areas:"partner" "msg" "next" "nav" "board"}
+  #nav{flex-direction:row;overflow-x:auto;height:62px}
+  .nv{flex:none;width:76px}
+  #msgbar{flex-wrap:wrap;height:auto}
+  #msg{flex-basis:100%;min-height:70px}
+  .ctl{flex:1;min-height:56px;width:auto}
+  .ctl.speak{aspect-ratio:auto;border-radius:22px}
+  #next .nlabel{display:none}
+  #next .nrow{grid-template-columns:repeat(3,minmax(0,1fr))}
+  #next .nrow > :nth-child(n+4){display:none}
+  #board{flex-direction:column}
+  #pager{flex-direction:row;width:auto;height:58px}
+  #dots{flex-direction:row}
+  #pain{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1.3fr) minmax(0,1fr)}
+  #app.gaze{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto minmax(0,1fr) auto;grid-template-areas:"partner" "msg" "next" "board" "yesno"}
+  #app.gaze #yesno{flex-direction:row;height:84px}
+  #app.cvi.field-left #board,#app.cvi.field-right #board{padding-inline:0}
+  .row{grid-template-columns:minmax(0,1fr) auto}
+  .row > :nth-child(2){grid-column:1 / -1;grid-row:2}
+  .ed{grid-template-columns:minmax(0,1fr)}
+  .bar{grid-template-columns:minmax(0,100px) minmax(0,1fr) 36px}
+  .gram div{grid-template-columns:minmax(0,1fr)}
+  .preview-wrap{height:160px}
+}
+@media (prefers-reduced-motion: reduce){body:not(.cvi-on) *{animation:none!important;transition:none!important}}
+#edRec.on{background:#d83a3a;border-color:#d83a3a;color:#fff;animation:recblink 1s ease-in-out infinite}
+@keyframes recblink{50%{opacity:.7}}
+</style>
+
+<div id="app">
+  <div id="partner" hidden aria-label="Message for the person opposite"></div>
+  <div id="msgbar">
+    <button id="gear2" aria-label="Carer settings, press and hold"><span aria-hidden="true" style="font-size:1.3rem">⚙︎</span>Hold</button>
+    <button id="backTop" class="ctl dwell" data-act="back"><span class="i" aria-hidden="true">↩︎</span><span data-ui="goback">Back</span></button>
+    <button id="restTop" class="ctl dwell" data-act="pause"><span class="i" aria-hidden="true">😌</span><span class="restLbl">Rest my eyes</span></button>
+    <button id="msg" class="dwell" data-act="speak" aria-label="Message. Select to speak"></button>
+    <button class="ctl speak dwell" data-act="speak"><span class="i" aria-hidden="true">🔊</span><span data-ui="speak">Speak</span></button>
+    <button class="ctl dwell" data-act="del" data-repeat="1"><span class="i" aria-hidden="true">⌫</span><span data-ui="del">Delete</span></button>
+    <button class="ctl dwell" data-act="clear"><span class="i" aria-hidden="true">✕</span><span data-ui="clear">Clear</span></button>
+    <button id="langBtn" class="ctl minor dwell" data-act="lang" hidden><span class="i" id="langCodes">EN ⇄ AF</span><span data-ui="language">Language</span></button>
+    <button class="ctl minor dwell" data-act="share"><span class="i" aria-hidden="true">📋</span><span data-ui="share">Copy</span></button>
+  </div>
+  <div id="next" aria-label="Suggested next words"><div class="nlabel">Next<b>learns as you go</b></div><div class="nrow"></div></div>
+  <nav id="nav" aria-label="Menu"></nav>
+  <main id="board">
+    <div id="grid"></div>
+    <div id="kbd" hidden></div>
+    <div id="scene" hidden></div>
+    <div id="pain" hidden></div>
+    <div id="pager">
+      <button class="pg dwell" data-act="prev" data-repeat="1" aria-label="Previous page"><span class="i">◀</span></button>
+      <div id="dots"></div>
+      <button class="pg dwell" data-act="next" data-repeat="1" aria-label="Next page"><span class="i">▶</span></button>
+    </div>
+  </main>
+  <div id="yesno"></div>
+</div>
+
+<div id="restNote" hidden>Resting. Look at the orange button to start again.</div>
+<div id="editbar" hidden><span>Editing buttons. Tap a button to change its picture, voice or word.</span><button class="btn" id="editDone">Done</button></div>
+
+<section id="settings" class="overlay" hidden aria-label="Carer settings">
+  <div class="sheet">
+    <header>
+      <h1>Carer settings</h1>
+      <button class="btn primary" id="closeSettings">Back to board</button>
+    </header>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="access" aria-selected="true">Access</button>
+      <button class="tab" role="tab" data-tab="vision">Vision &amp; CVI</button>
+      <button class="tab" role="tab" data-tab="board">Board &amp; language</button>
+      <button class="tab" role="tab" data-tab="personal">Photos, voices &amp; scenes</button>
+      <button class="tab" role="tab" data-tab="training">Gaze training</button>
+      <button class="tab" role="tab" data-tab="insights">Insights</button>
+      <button class="tab" role="tab" data-tab="setup">Setup &amp; backup</button>
+    </div>
+
+    <div data-panel="access" class="panel">
+      <div class="card">
+        <h2>How the child selects</h2>
+        <div class="modes" id="modes">
+          <button class="mode" data-mode="ipad"><b>Eye gaze · iPad Eye Tracking</b><span>The iPad's built-in eye tracking and Dwell Control make the selection. iPadOS 18 or later.</span></button>
+          <button class="mode" data-mode="dwell"><b>Eye gaze · app dwell</b><span>Looking fills an orange ring, then the button selects. For eye trackers or head pointers that only move a pointer.</span></button>
+          <button class="mode" data-mode="scan"><b>Switch scanning</b><span>Rows light up in turn. A switch, Space or Enter, or a tap anywhere selects.</span></button>
+          <button class="mode" data-mode="touch"><b>Touch</b><span>Direct tap on the screen.</span></button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Timing</h2>
+        <div class="row"><label for="dwell">Dwell time<small>How long to look before a button selects</small></label><input type="range" id="dwell" min="400" max="5000" step="100"><output id="dwellOut"></output></div>
+        <div class="row"><label for="scan">Scan speed<small>Time each row or button stays lit</small></label><input type="range" id="scan" min="600" max="4000" step="100"><output id="scanOut"></output></div>
+        <div class="row"><label for="guard">Repeat guard<small>Ignores the same button chosen twice in quick succession</small></label><input type="range" id="guard" min="0" max="2000" step="100"><output id="guardOut"></output></div>
+        <div class="row"><label for="restBtn">“Rest my eyes” button<small>Lets the child pause gaze selection and look around freely</small></label><span></span><input type="checkbox" id="restBtn"></div>
+        <div class="row"><label for="skipWeak">Leave hard-to-reach spots empty on word pages<small id="skipWeakNote"></small></label><span></span><input type="checkbox" id="skipWeak"></div>
+      </div>
+    </div>
+
+    <div data-panel="vision" class="panel" hidden>
+      <div class="card">
+        <h2>CVI mode</h2>
+        <div class="row"><label for="cvi">Use CVI mode<small>Black background, few items, one bright highlight colour, nothing else competing for attention</small></label><span></span><input type="checkbox" id="cvi"></div>
+        <div class="row"><label for="cviGrid">Items on screen<small>Start with 1 or 2 and add more as the child is ready</small></label><select id="cviGrid"><option value="1x1">1</option><option value="2x1">2</option><option value="2x2">4</option><option value="3x2">6</option></select><span></span></div>
+        <div class="row"><label>Highlight colour<small>Many children with CVI look first at red or yellow</small></label><div class="swatches" id="swatches"></div><span></span></div>
+        <div class="row"><label for="sil">Single-colour pictures<small>Shows each picture as a solid shape in the highlight colour, removing inner detail</small></label><span></span><input type="checkbox" id="sil"></div>
+        <div class="row"><label for="motion">Movement to attract looking<small>Breathing: pictures gently grow and shrink. Spotlight: one item at a time lights up and is said aloud</small></label><select id="motion"><option value="off">Off</option><option value="gentle">Breathing</option><option value="spotlight">Spotlight with voice</option></select><span></span></div>
+        <div class="row"><label for="spotMs">Spotlight speed<small>Time on each item; allow for the delay before the child looks</small></label><input type="range" id="spotMs" min="1500" max="8000" step="500"><output id="spotMsOut"></output></div>
+        <div class="row"><label for="field">Where the child sees best<small>Places the items in that part of the screen</small></label><select id="field"><option value="centre">Centre</option><option value="left">Left side</option><option value="right">Right side</option><option value="lower">Lower half</option><option value="full">Whole screen</option></select><span></span></div>
+        <div class="row"><label for="lookSpeak">Say the word when the child looks at it<small>Hearing the word helps when seeing it is hard. Works with eye tracking and app dwell</small></label><span></span><input type="checkbox" id="lookSpeak"></div>
+      </div>
+      <div class="card">
+        <h2>Preview</h2>
+        <div class="preview-wrap cvi" id="cviPreview"></div>
+        <p class="note-text">Use real photos of the child’s own familiar things wherever possible (Photos, voices &amp; scenes tab). Familiar, simple images are easier to recognise than symbols. For latency, set a long dwell time on the Access tab (up to 5 seconds).</p>
+      </div>
+    </div>
+
+    <div data-panel="board" class="panel" hidden>
+      <div class="card">
+        <h2>Layout</h2>
+        <div class="row"><label for="layout">Screen layout<small>Core board: menu on the left and the core words in the middle. Eye gaze: a home screen of big choices, with Yes and No always on the right.</small></label><select id="layout"><option value="core">Core board</option><option value="gaze">Eye gaze (big targets)</option></select><span></span></div>
+        <div class="row"><label for="gridSize">Core words and buttons per page<small>Every core word keeps its place as the grid grows</small></label><select id="gridSize"></select><span></span></div>
+        <div id="coreMap"></div>
+      </div>
+      <div class="card">
+        <h2>Languages</h2>
+        <div class="row"><label for="lang">Main language<small>Labels and speech</small></label><select id="lang"></select><span></span></div>
+        <div class="row"><label for="lang2">Second language<small>Adds a button to switch, e.g. English at school and Afrikaans at home</small></label><select id="lang2"></select><span></span></div>
+        <div class="row"><label for="showL2">Show second-language word under each picture</label><span></span><input type="checkbox" id="showL2"></div>
+        <div class="row"><label for="grammar">Build full sentences<small>Turns picture sequences into grammatical sentences</small></label><span></span><input type="checkbox" id="grammar"></div>
+        <div class="gram" id="gramDemo" style="margin-top:10px"></div>
+        <p class="note-text">English adds do/does, to and third-person endings. Afrikaans gets the double “nie”, moves hê and nodig to the end, uses “daarvan om … te” after hou van, and puts the verb second in questions.</p>
+      </div>
+      <div class="card">
+        <h2>Display</h2>
+        <div class="row"><label for="hs">Scene hotspot size</label><select id="hs"><option value="96">Medium</option><option value="124">Large</option><option value="156">Extra large</option></select><span></span></div>
+        <div class="row"><label for="suggest">Show the Next row<small>Suggests likely next words and learns the child’s own word pairs</small></label><span></span><input type="checkbox" id="suggest"></div>
+        <div class="row"><label for="labels">Show word labels</label><span></span><input type="checkbox" id="labels"></div>
+        <div class="row"><label for="speakEach">Say each word when chosen</label><span></span><input type="checkbox" id="speakEach"></div>
+        <div class="row"><label for="hc">High-contrast buttons</label><span></span><input type="checkbox" id="hc"></div>
+        <div class="row"><label for="partnerOn">Partner window<small>Shows the message upside down at the top for the person sitting opposite</small></label><span></span><input type="checkbox" id="partnerOn"></div>
+        <div class="row"><label for="simpleBody">Simple body map<small>6 large areas instead of 11 detailed ones</small></label><span></span><input type="checkbox" id="simpleBody"></div>
+        <div class="row"><label for="mirror">Body map mirror view<small>On: the child's left side is on the left of the screen</small></label><span></span><input type="checkbox" id="mirror"></div>
+        <div class="legend" style="margin-top:12px">
+          <span class="fk-p"><i></i>People</span><span class="fk-v"><i></i>Actions</span><span class="fk-d"><i></i>Describing</span>
+          <span class="fk-n"><i></i>Things &amp; places</span><span class="fk-s"><i></i>Social</span><span class="fk-q"><i></i>Questions</span><span class="fk-x"><i></i>No &amp; stop</span><span class="fk-w"><i></i>Little words</span>
+        </div>
+      </div>
+    </div>
+
+    <div data-panel="personal" class="panel" hidden>
+      <div class="card">
+        <h2>Personal pages</h2>
+        <p class="note-text" style="margin:0 0 12px">Add the child's family names, friends, favourite foods, places, shows, school and shops. Each word can have a real photo and a family member's recorded voice.</p>
+        <div class="btns"><button class="btn primary" id="addWord">Add a personal word</button><button class="btn" id="startEdit">Edit buttons on the board</button></div>
+        <p class="note-text">To add a voice: edit a button and press <b>Record now</b>, then say the word. Inside the Claude app the microphone is not available, so choose a voice memo file instead, or use Khuluma as its own website (Setup &amp; backup).</p>
+      </div>
+      <div class="card">
+        <h2>Check recordings</h2>
+        <p class="note-text" style="margin:0 0 6px" id="recWhere"></p>
+        <div class="slist" id="recList"></div>
+      </div>
+      <div class="card">
+        <h2>Scenes from your photos</h2>
+        <p class="note-text" style="margin:0 0 12px">Photograph the child's real kitchen, bedroom or classroom and place talking hotspots on it.</p>
+        <div class="btns"><button class="btn primary" id="newScene">Make a scene from a photo</button></div>
+        <div class="slist" id="sceneList"></div>
+      </div>
+      <div class="card">
+        <h2>Voice</h2>
+        <div class="row"><label for="voice">Computer voice</label><select id="voice"></select><button class="btn" id="testVoice">Test</button></div>
+        <div class="row"><label for="rate">Speaking speed</label><input type="range" id="rate" min="0.5" max="1.4" step="0.05"><output id="rateOut"></output></div>
+        <p id="voiceStatus" class="note-text"></p>
+      </div>
+    </div>
+
+    <div data-panel="training" class="panel" hidden>
+      <div class="card">
+        <h2>Gaze training ladder</h2>
+        <div class="modes">
+          <button class="mode" data-practice="explore"><b>1 · Explore</b><span>Four big pictures react when looked at. Teaches that looking makes something happen.</span></button>
+          <button class="mode" data-practice="target"><b>2 · Target</b><span>A target moves around all nine areas of the screen. Builds accuracy and maps which spots are easy to reach.</span></button>
+          <button class="mode" data-practice="choose"><b>3 · Choose</b><span>Two real choices appear and the iPad says the one picked.</span></button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Gaze map</h2>
+        <div id="zoneMap"></div>
+        <p class="note-text">Average time to select a target in each part of the screen. Red areas are hard to reach.</p>
+        <div class="btns" style="margin-top:10px"><button class="btn danger" id="resetZones">Clear gaze map</button></div>
+      </div>
+    </div>
+
+    <div data-panel="insights" class="panel" hidden>
+      <div class="card"><h2>Overview</h2><div id="statGrid" class="stats"></div><p class="note-text" id="accNote"></p></div>
+      <div class="card"><h2>Most-used words</h2><div id="topWords"></div></div>
+      <div class="card"><h2>Recent sentences</h2><div id="recent"></div></div>
+      <div class="card"><h2>Pain diary</h2><div id="diary" class="scroll-x"></div></div>
+      <div class="card">
+        <h2>Share with the therapy team</h2>
+        <div class="btns"><button class="btn primary" id="copyReport">Copy report</button><button class="btn" id="dlReport" hidden>Download report</button><button class="btn danger holdbtn" id="resetLog">Hold to clear insights</button></div>
+        <textarea id="reportText" readonly aria-label="Report text"></textarea>
+        <p class="note-text">Everything stays on this iPad. Nothing is sent anywhere unless you copy or download it.</p>
+      </div>
+    </div>
+
+    <div data-panel="setup" class="panel" hidden>
+      <div class="card guide">
+        <h2>Setting up eye gaze on the iPad</h2>
+        <ol>
+          <li>Mount the iPad securely at the child's eye level, about 30 to 45 cm from the face. Good seating and head support matter more than any setting.</li>
+          <li>On iPadOS 18 or later: Settings → Accessibility → Eye Tracking. Turn it on and calibrate. Recalibrate when the child's position changes.</li>
+          <li>For eye gaze, start with the <b>Eye gaze</b> layout and 9 or 16 core words. Move up a grid size as accuracy improves; known words stay in the same place.</li>
+          <li>Open the board in Safari and use Share → Add to Home Screen. Turn on Guided Access to keep the child on the board.</li>
+        </ol>
+        <p class="note-text">The Afrikaans vocabulary and sentence rules should be checked by the child's speech therapist before clinical use. isiZulu and isiXhosa will return in a later version with a researched core vocabulary.</p>
+      </div>
+      <div class="card">
+        <h2>Backup</h2>
+        <p class="note-text" style="margin:0 0 12px">Photos, recordings, scenes, personal words, settings and insights are stored on this iPad only. Keep a backup, and use it to copy the same board to the school iPad.</p>
+        <div class="btns"><button class="btn primary" id="dlBackup" hidden>Download backup</button><button class="btn" id="restoreBtn">Restore from backup</button></div>
+        <p class="note-text" id="backupNote"></p>
+        <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="editor" class="overlay" hidden aria-label="Edit button">
+  <div class="sheet">
+    <header><h1 id="edTitle">Edit button</h1><div class="btns"><button class="btn" id="edCancel">Cancel</button><button class="btn primary" id="edSave">Save</button></div></header>
+    <div class="card ed">
+      <div id="edPreview" class="preview"></div>
+      <div class="fields">
+        <label id="edGroupWrap">Personal page<select id="edGroup"></select></label>
+        <label>Word or phrase<input type="text" id="edLabel" maxlength="40"></label>
+        <label>Picture (emoji)<input type="text" id="edEmoji" maxlength="8"></label>
+        <div><div style="font-weight:600;font-size:.9rem;margin-bottom:6px">Photo</div>
+          <div class="media-row"><button class="btn" id="edPhotoBtn">Choose or take photo</button><button class="btn danger" id="edPhotoDel">Remove photo</button><span id="edPhotoState"></span></div>
+          <input type="file" id="edPhoto" accept="image/*" hidden></div>
+        <div><div style="font-weight:600;font-size:.9rem;margin-bottom:6px">Family voice recording</div>
+          <div class="media-row"><button class="btn primary" id="edRec">🎙️ Record now</button><button class="btn" id="edAudioBtn">Choose a file</button><button class="btn" id="edAudioPlay">Play</button><button class="btn danger" id="edAudioDel">Remove</button><span id="edAudioState"></span></div>
+          <input type="file" id="edAudio" accept="audio/*,video/mp4,.m4a,.mp4,.mp3,.wav,.aac,.caf" hidden></div>
+        <label style="display:flex;align-items:center;gap:10px" id="edHideWrap"><input type="checkbox" id="edHide"> Hide this button from the board</label>
+        <div><button class="btn danger" id="edDelete" hidden>Delete this word</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="sceneEd" class="overlay" hidden aria-label="Scene maker">
+  <div class="sheet">
+    <header><h1 id="seTitleH">New scene</h1><div class="btns"><button class="btn" id="seCancel">Cancel</button><button class="btn primary" id="seSave">Save scene</button></div></header>
+    <div class="card">
+      <div style="display:grid;gap:12px">
+        <label style="font-weight:600;font-size:.9rem;display:grid;gap:6px">Scene name<input type="text" id="seTitle" maxlength="30" placeholder="e.g. Our kitchen"></label>
+        <div class="media-row"><button class="btn" id="sePhotoBtn">Choose or take photo</button><span id="sePhotoState" class="note-text" style="margin:0"></span></div>
+        <input type="file" id="sePhoto" accept="image/*" hidden>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Hotspots</h2>
+      <p class="note-text" style="margin:0 0 10px" id="seHint">Choose a photo first.</p>
+      <div id="seStage"></div>
+      <div class="sehot"><input type="text" id="seLabel" maxlength="40" placeholder="What should it say? e.g. Juice in the fridge"><button class="btn primary" id="seAdd">Add hotspot</button></div>
+      <div class="slist" id="seList"></div>
+      <div class="btns" style="margin-top:12px"><button class="btn danger" id="seDelete" hidden>Delete this scene</button></div>
+    </div>
+  </div>
+</section>
+
+<section id="practice" class="overlay" hidden aria-label="Gaze training">
+  <div class="bar2">
+    <div class="ptabs" role="tablist">
+      <button class="ptab" data-stage="explore">Explore</button><button class="ptab" data-stage="target">Target</button><button class="ptab" data-stage="choose">Choose</button>
+    </div>
+    <span id="pStats"></span>
+    <span style="display:flex;gap:8px;align-items:center">
+      <select id="pSize" aria-label="Target size" style="width:auto"><option value="220">Large</option><option value="150">Medium</option><option value="100">Small</option></select>
+      <button class="holdbtn" id="pExit">Hold to exit</button>
+    </span>
+  </div>
+  <div class="stage" id="stage"></div>
+</section>
+
+<div id="toast" role="status"></div>
+
+<script>
+(function(){
+"use strict";
+//@@VOCAB@@
+//@@APP@@
+})();
+</script>
