@@ -2498,7 +2498,7 @@ const SITE=CFG.siteUrl||(location.origin+location.pathname);
 const DEVICE_KEYS=['voice','rate'];          // these stay with the device (voices differ per iPad or Mac)
 const PROFESSIONS=['Physiotherapist','Occupational therapist','Speech-language therapist','Audiologist','Teacher or educator','Other'];
 
-let sb=null, session=null, profile=null, kids=[], ready=false, online=navigator.onLine;
+let renaming='', sb=null, session=null, profile=null, kids=[], ready=false, online=navigator.onLine;
 let childId=LS.get('khuluma.cloud.child',''), localOnly=LS.get('khuluma.cloud.local',false);
 let st=loadSt(childId), pushT=0, pushing=false, gen=0, lastPull=0, syncMsg='', openTeam='', lastInvite=null;
 
@@ -2738,14 +2738,15 @@ async function renderAccount(){
     $('#acIn').onclick=()=>{ $('#settings').hidden=true; showAuth('welcome'); }; return; }
   const k=kid(), ther=profile&&profile.role==='therapist';
   let h=`<div class="card"><h2>Signed in</h2><div class="kid"><span class="who"><b>${esc(profile?.full_name||session.user.email)}</b><span class="note-text" style="margin:0">${esc(session.user.email)} · ${ther?esc(profile.profession||'Therapist'):'Parent'}</span></span>
-    <span class="acts"><button class="btn" id="acOut">Sign out</button></span></div>
+    <span class="acts"><button class="btn" id="acName">Change my name</button><button class="btn" id="acOut">Sign out</button></span></div>
+    <div id="acNameBox" hidden><div class="fld"><label for="acNameIn">Your full name (shown to the team and on invites)</label><input id="acNameIn" maxlength="80" value="${esc(profile?.full_name||'')}"></div><div class="btns" style="margin-top:8px"><button class="btn primary" id="acNameSave">Save name</button></div></div>
     <p class="note-text" id="acOutNote" hidden></p></div>
     <div class="card"><h2>This device</h2>${k?`<div class="kid on"><span class="who"><b>${esc(k.name)}’s board</b><span class="note-text" style="margin:0">You are ${roleName(k.role).toLowerCase()} · <span id="syncDot">${esc(syncMsg||'')}</span></span></span><span class="acts"><button class="btn" id="acSync">Sync now</button></span></div>`:
       `<p class="note-text" style="margin:0">No child’s board is open on this device yet.${ther?' Add a child below, or open one of yours.':''}</p>`}
     ${k&&isTher()?`<label class="chk"><input type="checkbox" id="acDev" ${LS.get('khuluma.cloud.childDevice',false)?'checked':''}><span>This is ${esc(k.name)}’s own device (it records how the board is used for Insights)</span></label>`:''}</div>`;
   if(ther){
     h+=`<div class="card"><h2>Your children</h2><div class="slist" style="margin-top:0">${kids.length?kids.map(c=>`<div class="kid ${c.id===childId?'on':''}"><span class="who"><b>${esc(c.name)}</b><span class="note-text" style="margin:0">${roleName(c.role)}</span></span>
-        <span class="acts">${c.id===childId?'':`<button class="btn" data-open="${c.id}">Open on this device</button>`}<button class="btn" data-team="${c.id}">${openTeam===c.id?'Close team':'Team & invites'}</button></span></div>`).join(''):'<div class="empty-state" style="display:block">No children yet.</div>'}</div>
+        <span class="acts">${c.id===childId?'':`<button class="btn" data-open="${c.id}">Open on this device</button>`}<button class="btn" data-ren="${c.id}">Rename</button><button class="btn" data-team="${c.id}">${openTeam===c.id?'Close team':'Team & invites'}</button></span></div>${renaming===c.id?`<div class="fld"><label for="acRen">New name for ${esc(c.name)}</label><input id="acRen" maxlength="60" value="${esc(c.name)}"></div><div class="btns" style="margin-top:8px"><button class="btn primary" id="acRenSave">Save name</button><button class="btn" id="acRenCancel">Cancel</button></div>`:''}`).join(''):'<div class="empty-state" style="display:block">No children yet.</div>'}</div>
       ${kid(openTeam)?`<h2 style="margin-top:18px">${esc(kid(openTeam).name)}’s team</h2><div id="teamBox"></div>`:''}
       <h2 style="margin-top:18px">Add a child</h2>
       <p class="note-text" style="margin:0 0 4px">Use a first name or nickname only. You become the lead therapist and can invite the parents and other therapists.</p>
@@ -2757,6 +2758,15 @@ async function renderAccount(){
   }
   if(k&&!ther) h+=`<div class="card"><h2>${esc(k.name)}’s team</h2><div id="teamBox"></div><p class="note-text">The therapist sets up the board. You can add personal words, photos and recordings in Photos, voices &amp; scenes.</p></div>`;
   el.innerHTML=h;
+  $('#acName').onclick=()=>{ $('#acNameBox').hidden=!$('#acNameBox').hidden; };
+  $('#acNameSave').onclick=async e=>{ const n=val('acNameIn'); if(!n) return; busy(e.target,true); const r=await sb.from('profiles').update({full_name:n}).eq('id',session.user.id); busy(e.target,false);
+    if(r.error) return toast(friendly(r.error)); profile=Object.assign({},profile,{full_name:n}); toast('Name saved'); renderAccount(); };
+  el.querySelectorAll('[data-ren]').forEach(b=>b.onclick=()=>{ renaming=renaming===b.dataset.ren?'':b.dataset.ren; renderAccount(); });
+  if($('#acRenCancel')) $('#acRenCancel').onclick=()=>{ renaming=''; renderAccount(); };
+  if($('#acRenSave')) $('#acRenSave').onclick=async e=>{ const n=val('acRen'); if(!n) return; busy(e.target,true);
+    const r=await sb.from('children').update({display_name:n}).eq('id',renaming).select('id'); busy(e.target,false);
+    if(r.error||!(r.data||[]).length) return toast(r.error?friendly(r.error):'Only the child’s therapist can rename the child.');
+    renaming=''; await loadMe(); renderAccount(); toast('Name changed to '+n); };
   $('#acOut').onclick=e=>{ const n=$('#acOutNote'); if(!n.hidden){ return; } n.hidden=false;
     n.innerHTML=`Sign out of this device? <button class="btn" id="acOutKeep">Sign out, keep the board here</button> <button class="btn" id="acOutWipe">Sign out and remove the board</button>`;
     $('#acOutKeep').onclick=()=>signOut(false); $('#acOutWipe').onclick=()=>signOut(true); };
