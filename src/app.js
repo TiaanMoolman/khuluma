@@ -67,7 +67,16 @@ const LEVELS=[
 const GRID_IDS=GRIDS.map(g=>g[0]);
 const DEF={mode:'ipad',dwell:1200,scan:1500,guard:700,grid:'8x6',lang:'en',lang2:'',showL2:false,labels:true,speakEach:true,hc:false,voice:'',rate:0.9,
   psize:'220',restBtn:true,skipWeak:false,partner:false,simpleBody:false,mirror:true,grammar:true,hs:'124',layout:'core',
-  cvi:false,cviGrid:'2x1',cviColour:'#ffd400',sil:false,motion:'gentle',spotMs:3500,field:'centre',lookSpeak:false,suggest:true};
+  cvi:false,cviGrid:'2x1',cviColour:'#ffd400',sil:false,motion:'gentle',spotMs:3500,field:'centre',lookSpeak:false,suggest:true,bubble:false,bOut:8,bGap:5,bLight:false,cviFont:'nunito',cviText:110};
+const CVI_FONTS={nunito:'"Nunito",system-ui,sans-serif',varela:'"Varela Round",system-ui,sans-serif',andika:'"Andika",system-ui,sans-serif',atkinson:'"Atkinson Hyperlegible",system-ui,sans-serif'};
+// Word bubbling: copies of the word stacked in rings. The gap ring (background colour) sits on top of the outline ring (highlight colour).
+function bubbleShadow(gap,out,col,bg){
+  const rings=(from,to,c)=>{ const parts=[]; for(let r=to;r>=from;r-=1.5){ const n=Math.max(8,Math.ceil(2*Math.PI*r/2)); for(let i=0;i<n;i++){ const a=2*Math.PI*i/n; parts.push(`${(Math.cos(a)*r).toFixed(1)}px ${(Math.sin(a)*r).toFixed(1)}px 0 ${c}`); } } return parts; };
+  return [...(gap>0?rings(1,gap,bg):[]),...rings(Math.max(1,gap),gap+out,col)].join(',');
+}
+function applyCviText(el){ el.style.setProperty('--cvi-font',CVI_FONTS[settings.cviFont]||CVI_FONTS.nunito); el.style.setProperty('--cvi-scale',settings.cviText/100);
+  el.classList.toggle('bubble',!!settings.bubble); el.classList.toggle('bubble-light',!!settings.bLight);
+  if(settings.bubble){ el.style.setProperty('--bubble',bubbleShadow(settings.bGap,settings.bOut,settings.cviColour,settings.bLight?'#fff':'#000')); el.style.setProperty('--bpad',(settings.bGap+settings.bOut)+'px'); } }
 const CVI_COLOURS=[['#ff2a2a','Red'],['#ffd400','Yellow'],['#ff8c00','Orange'],['#39e75f','Green'],['#2f8cff','Blue'],['#ff4fd8','Pink'],['#ffffff','White']];
 const ls={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
 const firstRun=!ls.get('khuluma.v1',null);
@@ -286,7 +295,7 @@ function renderUI(){
   app.classList.toggle('cvi',!!settings.cvi); document.body.classList.toggle('cvi-on',!!settings.cvi);
   app.classList.toggle('sil',!!settings.sil); ['gentle','spotlight'].forEach(m=>app.classList.toggle('motion-'+m,settings.cvi&&settings.motion===m));
   ['left','right','lower','centre'].forEach(f=>app.classList.toggle('field-'+f,settings.cvi&&settings.field===f));
-  app.style.setProperty('--cvi',settings.cviColour); app.classList.toggle('nolabels',!settings.labels); app.classList.toggle('hc',settings.hc); app.classList.toggle('editing',editing);
+  app.style.setProperty('--cvi',settings.cviColour); applyCviText(app); app.classList.toggle('nolabels',!settings.labels); app.classList.toggle('hc',settings.hc); app.classList.toggle('editing',editing);
   const restOn=settings.restBtn&&(settings.mode==='dwell'||settings.mode==='ipad');
   const rt=$('#restTop'); rt.classList.toggle('on',restOn); rt.setAttribute('aria-pressed',String(paused));
   rt.querySelector('.restLbl').textContent=paused?ui('resume'):ui('rest'); rt.querySelector('.i').textContent=paused?'▶️':'😌';
@@ -615,7 +624,7 @@ $('#closeSettings').addEventListener('click',closeSettings);
 $('#lang').innerHTML=Object.entries(LANGS).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('');
 $('#gridSize').innerHTML=GRIDS.map(([v,n])=>`<option value="${v}">${n}</option>`).join('');
 const fmt={dwell:v=>(v/1000).toFixed(1)+' s',scan:v=>(v/1000).toFixed(1)+' s',guard:v=>v?(v/1000).toFixed(1)+' s':'Off',rate:v=>Number(v).toFixed(2)+'×'};
-const BOOLS=['labels','speakEach','hc','showL2','restBtn','skipWeak','simpleBody','mirror','grammar','sil','lookSpeak','suggest'];
+const BOOLS=['labels','speakEach','hc','showL2','restBtn','skipWeak','simpleBody','mirror','grammar','sil','lookSpeak','suggest','bubble','bLight'];
 fmt.spotMs=v=>(v/1000).toFixed(1)+' s';
 function syncSettings(){
   $$('#modes .mode').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===settings.mode));
@@ -627,6 +636,8 @@ function syncSettings(){
   $('#partnerOn').checked=settings.partner;
   $('#cvi').checked=!!settings.cvi; $('#cviGrid').value=settings.cviGrid; $('#motion').value=settings.motion; $('#field').value=settings.field;
   $('#spotMs').value=settings.spotMs; $('#spotMsOut').textContent=fmt.spotMs(settings.spotMs);
+  [['bOut','px'],['bGap','px'],['cviText','%']].forEach(([k,u])=>{ $('#'+k).value=settings[k]; $('#'+k+'Out').textContent=settings[k]+(u==='%'?'%':' px'); });
+  $('#cviFont').value=settings.cviFont;
   $('#swatches').innerHTML=CVI_COLOURS.map(([c,n])=>`<button class="sw" style="--c:${c}" data-col="${c}" aria-label="${n}" aria-pressed="${settings.cviColour===c}"></button>`).join('');
   renderPreview();
   const w=weakZones().filter(Boolean).length, have=zoneStats().filter(v=>v!=null).length;
@@ -644,10 +655,12 @@ $('#layout').addEventListener('change',e=>{ settings.layout=e.target.value; hist
   if(gaze()){ view='home'; if(['8x6','10x6','6x5'].includes(settings.grid)) settings.grid='4x4'; } else { view='core'; }
   save(); syncSettings(); renderCoreMap(); });
 $('#hs').addEventListener('change',e=>{ settings.hs=e.target.value; save(); });
-BOOLS.forEach(k=>$('#'+k).addEventListener('change',e=>{ settings[k]=e.target.checked; save(); if(k==='grammar') renderGramDemo(); if(k==='sil') renderPreview(); }));
+BOOLS.forEach(k=>$('#'+k).addEventListener('change',e=>{ settings[k]=e.target.checked; save(); if(k==='grammar') renderGramDemo(); if(['sil','bubble','bLight'].includes(k)) renderPreview(); }));
 $('#partnerOn').addEventListener('change',e=>{ settings.partner=e.target.checked; save(); });
 $('#cvi').addEventListener('change',e=>{ settings.cvi=e.target.checked; hist=[]; page=0; view=gaze()?'home':'core';
   if(settings.cvi){ if(settings.dwell<1800) settings.dwell=2000; settings.lookSpeak=true; } save(); syncSettings(); });
+[['bOut','px'],['bGap','px'],['cviText','%']].forEach(([k,u])=>$('#'+k).addEventListener('input',e=>{ settings[k]=+e.target.value; $('#'+k+'Out').textContent=settings[k]+(u==='%'?'%':' px'); save(); renderPreview(); }));
+$('#cviFont').addEventListener('change',e=>{ settings.cviFont=e.target.value; save(); renderPreview(); });
 $('#cviGrid').addEventListener('change',e=>{ settings.cviGrid=e.target.value; page=0; save(); });
 $('#motion').addEventListener('change',e=>{ settings.motion=e.target.value; save(); renderPreview(); });
 $('#field').addEventListener('change',e=>{ settings.field=e.target.value; save(); });
@@ -655,7 +668,7 @@ $('#spotMs').addEventListener('input',e=>{ settings.spotMs=+e.target.value; $('#
 $('#swatches').addEventListener('click',e=>{ const b=e.target.closest('[data-col]'); if(!b) return; settings.cviColour=b.dataset.col; save(); syncSettings(); });
 function renderPreview(){ const p=$('#cviPreview'); if(!p) return;
   p.className='preview-wrap cvi'+(settings.sil?' sil':'')+(settings.motion==='gentle'?' motion-gentle':'');
-  p.style.setProperty('--cvi',settings.cviColour);
+  p.style.setProperty('--cvi',settings.cviColour); applyCviText(p);
   const a=getItem('drinks:water'), b=getItem('food:banana');
   p.innerHTML=tileHTML(a,'spot').replace(/ dwell/,'').replace(/ data-act="tile"/,'')+tileHTML(b).replace(/ dwell/,'').replace(/ data-act="tile"/,''); }
 $('#voice').addEventListener('change',e=>{ settings.voice=e.target.value; save(); voiceStatus(); });
