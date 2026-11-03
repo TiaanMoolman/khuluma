@@ -86,10 +86,30 @@ if(settings.layout==='standard') settings.layout='core';
 if(!LANGS[settings.lang]) settings.lang='en';
 if(settings.lang2&&(!LANGS[settings.lang2]||settings.lang2===settings.lang)) settings.lang2='';
 if(!GRID_IDS.includes(settings.grid)) settings.grid=settings.layout==='gaze'?'3x3':'8x6';
-let custom=ls.get('khuluma.custom',[]).map((c,i)=>({id:c.id||('c'+i+Date.now().toString(36)),label:c.label||c.w||'',e:c.e||'💛',img:c.img||'',audio:c.audio||'',group:c.group||'family'}));
+let custom=ls.get('khuluma.custom',[]).map((c,i)=>({id:c.id||('c'+i+Date.now().toString(36)),label:c.label||c.w||'',e:c.e||'💛',img:c.img||'',audio:'',audioL:c.audioL||{},group:c.group||'family'}));
 let ov=ls.get('khuluma.ov',{});
-// older versions kept one recording per button; it was made in the language in use, so file it under that language
-Object.values(ov).forEach(o=>{ if(o.audio){ o.audioL=Object.assign({[settings.lang]:o.audio},o.audioL||{}); delete o.audio; } });
+// Recordings and renamed labels belong to one language. Older versions mixed them, so the first time this
+// version runs (and when an older backup is restored) every recording is cleared and labels are split per language.
+const normW=s=>String(s||'').toLowerCase().replace(/[’'`.,!?¿¡]/g,'').replace(/\s+/g,' ').trim();
+const REC_V=2;
+function cleanLegacy(wipe){
+  Object.keys(ov).forEach(k=>{ const o=ov[k], b=ITEMS[k];
+    if(wipe){ delete o.audioL; } delete o.audio;
+    if(o.label!=null){ const l=String(o.label).trim();
+      // a label that is simply the other language's word was a mix-up; drop it
+      const isOtherWord=b&&LC.some(lg=>normW(b.w[LI[lg]])===normW(l));
+      if(l&&!isOtherWord) o.labelL=Object.assign({},...LC.map(lg=>({[lg]:l})),o.labelL||{});
+      delete o.label; }
+    if(o.labelL) Object.keys(o.labelL).forEach(lg=>{ if(!o.labelL[lg]||!LANGS[lg]) delete o.labelL[lg]; });
+    if(o.labelL&&!Object.keys(o.labelL).length) delete o.labelL;
+    if(o.audioL) Object.keys(o.audioL).forEach(lg=>{ if(!o.audioL[lg]||!LANGS[lg]) delete o.audioL[lg]; });
+    if(o.audioL&&!Object.keys(o.audioL).length) delete o.audioL;
+    if(!Object.keys(o).length) delete ov[k]; });
+  custom.forEach(c=>{ delete c.audio; c.audio=''; if(wipe||!c.audioL) c.audioL={}; });
+}
+let recReset=false;
+if(ls.get('khuluma.recv',0)<REC_V){ cleanLegacy(true); recReset=Object.keys(localStorage).some(k=>k.startsWith('khuluma.'))&&!firstRun; ls.set('khuluma.recv',REC_V); ls.set('khuluma.custom',custom); ls.set('khuluma.ov',ov); }
+else cleanLegacy(false);
 let scenesC=ls.get('khuluma.scenes',[]);
 const LOGDEF=()=>({next:{},sel:{},spoken:0,selections:0,undo:0,pain:[],zones:Array.from({length:9},()=>({n:0,sum:0})),days:{},recent:[],since:Date.now()});
 let log=Object.assign(LOGDEF(),ls.get('khuluma.log',{}));
@@ -122,9 +142,13 @@ async function mediaURL(k){ if(!k) return ''; if(urls.has(k)) return urls.get(k)
   const u=isAudio?await new Promise(res=>{const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>res(''); r.readAsDataURL(b);}):URL.createObjectURL(b);
   if(u) urls.set(k,u); return u; }
 function dropURL(k){ if(urls.has(k)){ const u=urls.get(k); if(u.startsWith('blob:')) try{URL.revokeObjectURL(u);}catch(e){} urls.delete(k);} }
-function usedMedia(){ const used=new Set(); Object.values(ov).forEach(o=>{o.img&&used.add(o.img);o.audio&&used.add(o.audio);Object.values(o.audioL||{}).forEach(a=>a&&used.add(a));}); custom.forEach(c=>{c.img&&used.add(c.img);c.audio&&used.add(c.audio);}); scenesC.forEach(s=>{s.img&&used.add(s.img);}); return used; }
+function usedMedia(){ const used=new Set(); Object.values(ov).forEach(o=>{o.img&&used.add(o.img);Object.values(o.audioL||{}).forEach(a=>a&&used.add(a));}); custom.forEach(c=>{c.img&&used.add(c.img);Object.values(c.audioL||{}).forEach(a=>a&&used.add(a));}); scenesC.forEach(s=>{s.img&&used.add(s.img);}); return used; }
 async function preloadMedia(){ await Promise.all([...usedMedia()].map(mediaURL)); }
 async function gcMedia(){ const used=usedMedia(); [...urls.keys()].forEach(k=>{ if(!used.has(k)){ idb.del(k); dropURL(k);} }); }
+async function purgeMedia(){ const used=usedMedia(); const keys=new Set();
+  if(idb.db){ const all=await idb.tx('readonly',st=>st.getAllKeys()); (all||[]).forEach(k=>keys.add(String(k))); }
+  try{ Object.keys(localStorage).forEach(k=>{ if(k.startsWith('khuluma.m.')) keys.add(k.slice(10)); }); }catch(e){}
+  for(const k of keys){ if(k.startsWith('aud-')&&!used.has(k)){ await idb.del(k); dropURL(k); } } }
 const uid=p=>p+'-'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 
 // ---------- items ----------
@@ -132,24 +156,32 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'
 function baseItem(key){
   if(ITEMS[key]) return ITEMS[key];
   const parts=key.split(':'), c=parts[0];
-  if(c==='mine'){ const x=custom.find(z=>z.id===parts[1]); return x&&{key,e:x.e||'💛',w:[x.label,x.label],c:x.group==='family'||x.group==='friends'?'p':'n',img:x.img,audio:x.audio,custom:true}; }
+  if(c==='mine'){ const x=custom.find(z=>z.id===parts[1]); return x&&{key,e:x.e||'💛',w:[x.label,x.label],c:x.group==='family'||x.group==='friends'?'p':'n',img:x.img,audio:'',custom:true}; }
   if(c==='scn'){ const sid=parts[1], i=+parts[2]; const b=SCENES.find(s=>s.id===sid);
     if(b){ const h=b.hot[i]; return h&&{key,e:h.e,w:h.w,c:h.c}; }
     const s=scenesC.find(z=>z.id===sid); const h=s&&s.hot[i]; return h&&{key,e:'📍',w:[h.label,h.label],c:'n',custom:true}; }
   return null;
 }
-function ownItem(key,lang=settings.lang){ const b=baseItem(key); if(!b) return null; const o=ov[key]; if(!o||b.custom) return b; return Object.assign({},b,{label:o.label||'',e:o.e||b.e,img:o.img||'',audio:(o.audioL||{})[lang]||'',hidden:!!o.hidden}); }
+function ownItem(key,lang=settings.lang){ const b=baseItem(key); if(!b) return null;
+  if(key.startsWith('mine:')){ const x=custom.find(z=>'mine:'+z.id===key); return Object.assign({},b,{audio:(x&&x.audioL||{})[lang]||'',lang}); }
+  const o=ov[key]; if(!o||b.custom) return Object.assign({},b,{lang});
+  return Object.assign({},b,{label:(o.labelL||{})[lang]||'',e:o.e||b.e,img:o.img||'',audio:(o.audioL||{})[lang]||'',hidden:!!o.hidden,lang}); }
 // The same words appear in several places (QuickFires, scenes, topics). A recording made on one
 // button is used by every button that says exactly the same words in the same language.
-const normW=s=>String(s||'').toLowerCase().replace(/[’'`.,!?¿¡]/g,'').replace(/\s+/g,' ').trim();
 let recByWord=null;
 function buildRecMap(){ recByWord=new Map();
   const put=(lang,w,a)=>{ const n=normW(w); if(n&&!recByWord.has(lang+'|'+n)) recByWord.set(lang+'|'+n,a); };
   Object.entries(ov).forEach(([k,o])=>{ const b=baseItem(k); if(!b) return;
-    Object.entries(o.audioL||{}).forEach(([lang,a])=>{ if(a) put(lang,o.label||b.w[LI[lang]??0],a); }); });
-  custom.forEach(c=>{ if(c.audio) LC.forEach(l=>put(l,c.label,c.audio)); }); }      // names sound the same in both languages
+    Object.entries(o.audioL||{}).forEach(([lang,a])=>{ if(a) put(lang,(o.labelL||{})[lang]||b.w[LI[lang]??0],a); }); });
+  custom.forEach(c=>Object.entries(c.audioL||{}).forEach(([lang,a])=>{ if(a) put(lang,c.label,a); })); }
 function sharedRec(w,lang=settings.lang){ if(!recByWord) buildRecMap(); return recByWord.get(lang+'|'+normW(w))||''; }
-function getItem(key){ const it=ownItem(key); if(!it||it.audio) return it; const a=sharedRec(word(it)); return a?Object.assign({},it,{audio:a}):it; }
+function getItem(key,lang=settings.lang){ const it=ownItem(key,lang); if(!it||it.audio) return it; const a=sharedRec(wordOf(it,lang),lang); return a?Object.assign({},it,{audio:a}):it; }
+// message items are looked up again in the language now in use, so a word never keeps another language's recording or label
+function fresh(it,lang=settings.lang){ if(!it) return it;
+  if(it.key&&it.key.startsWith('typed:')) return Object.assign({},it,{audio:sharedRec(it.label,lang),lang});
+  if(it.key&&it.key!=='pain'&&baseItem(it.key)) return getItem(it.key,lang)||it;
+  return Object.assign({},it,{audio:'',lang}); }
+function refreshMsg(){ msg=msg.map(it=>fresh(it)); }
 const L=(l=settings.lang)=>LI[l]??0;
 const word=(it,l=settings.lang)=>wordOf(it,l);
 const ui=(k,l)=>UI[k][L(l)];
@@ -426,7 +458,7 @@ async function playItemAudio(it){ if(!it.audio) return false; const r=await play
   if(!warnedAudio){ warnedAudio=true; toast(r==='missing'?'The recording for “'+word(it)+'” is not saved on this device. Add it again (hold the gear › Photos, voices & scenes).':'The recording for “'+word(it)+'” could not play. Try an .m4a or .mp3 file.'); }
   return false; }
 function sayItems(list,whole){
-  stopAll(); if(!list.length) return; const tok=speakTok;
+  stopAll(); if(!list.length) return; const tok=speakTok; list=list.map(it=>fresh(it));
   const hasAudio=list.some(it=>it.audio);
   if(!hasAudio){ tts(whole?sentence(list):list.map(it=>plainW(it,settings.lang,false)).join(' ')); return; }
   (async()=>{ for(const it of list){ if(tok!==speakTok) return; if(!(await playItemAudio(it))) await ttsWait(plainW(it,settings.lang,false)); } })();
@@ -467,7 +499,7 @@ function activate(el){
     case 'del': if(view==='keyboard'&&typed){ typed=typed.slice(0,-1); renderKeyboard(); break; } msg.pop(); if(Date.now()-lastAdd<3000){ log.undo++; saveLog(); lastAdd=0; } renderMsg(); break;
     case 'clear': msg=[]; typed=''; renderMsg(); if(view==='keyboard') renderKeyboard(); break;
     case 'share':{ const s=sentence(); if(!s) break; (navigator.clipboard?navigator.clipboard.writeText(s):Promise.reject()).then(()=>toast('Message copied'),()=>toast(s)); break; }
-    case 'lang': if(settings.lang2){ const a=settings.lang; settings.lang=settings.lang2; settings.lang2=a; settings.voice=''; save(); renderAll(); sayText(LANGS[settings.lang].name); } break;
+    case 'lang': if(settings.lang2){ const a=settings.lang; settings.lang=settings.lang2; settings.lang2=a; settings.voice=''; save(); refreshMsg(); renderAll(); sayText(LANGS[settings.lang].name); } break;
     case 'prev': case 'next': page=(page+(act==='next'?1:-1)+pages)%pages; renderBoard(); startSpot(); break;
     case 'part':{ painPart={id,part:el.dataset.part,side:el.dataset.side||null}; sayText(partName(painPart)); renderPain(); break; }
     case 'level':{ if(!painPart) break; const lv=+id, it=painItem(painPart,lv); msg.push(it); renderMsg(); sayText(word(it));
@@ -648,7 +680,7 @@ function syncSettings(){
 $$('#modes .mode').forEach(b=>b.addEventListener('click',()=>{ settings.mode=b.dataset.mode; syncSettings(); save(); }));
 ['dwell','scan','guard'].forEach(k=>$('#'+k).addEventListener('input',e=>{ settings[k]=+e.target.value; $('#'+k+'Out').textContent=fmt[k](settings[k]); save(); }));
 $('#rate').addEventListener('input',e=>{ settings.rate=+e.target.value; $('#rateOut').textContent=fmt.rate(settings.rate); save(); });
-$('#lang').addEventListener('change',e=>{ settings.lang=e.target.value; if(settings.lang2===settings.lang) settings.lang2=''; settings.voice=''; syncSettings(); save(); renderGramDemo(); renderCoreMap(); });
+$('#lang').addEventListener('change',e=>{ settings.lang=e.target.value; if(settings.lang2===settings.lang) settings.lang2=''; settings.voice=''; refreshMsg(); syncSettings(); save(); renderGramDemo(); renderCoreMap(); });
 $('#lang2').addEventListener('change',e=>{ settings.lang2=e.target.value; save(); });
 $('#gridSize').addEventListener('change',e=>{ settings.grid=e.target.value; page=0; save(); renderCoreMap(); });
 $('#layout').addEventListener('change',e=>{ settings.layout=e.target.value; hist=[]; page=0;
@@ -710,8 +742,8 @@ function openEditor(key){
   const isNew=!key, it=isNew?{key:null,e:'💛',w:['',''],c:'n',custom:true}:getItem(key); if(!it) return;
   const cw=key&&key.startsWith('mine:')?custom.find(z=>'mine:'+z.id===key):null;
   const own=isNew?it:ownItem(key);
-  ed={key,isNew,custom:!!it.custom,label:it.custom?it.w[0]:(ov[key]?.label||''),e:it.e,img:it.img||'',audio:own.audio||'',hidden:!!it.hidden,newMedia:[],base:it,group:cw?cw.group:(view.startsWith('pgroup:')?view.slice(7):'family')};
-  $('#edTitle').textContent=isNew?'Add a personal word':'Edit button';
+  ed={key,isNew,custom:!!it.custom,label:it.custom?it.w[0]:((ov[key]?.labelL||{})[settings.lang]||''),lang:settings.lang,e:it.e,img:it.img||'',audio:own.audio||'',hidden:!!it.hidden,newMedia:[],base:it,group:cw?cw.group:(view.startsWith('pgroup:')?view.slice(7):'family')};
+  $('#edTitle').textContent=(isNew?'Add a personal word':'Edit button')+' · '+LANGS[settings.lang].name;
   $('#edLabel').value=ed.label; $('#edLabel').placeholder=it.custom?'e.g. Bongi, Rusty the dog, Spur':word(Object.assign({},it,{label:''}));
   $('#edEmoji').value=ed.e; $('#edHide').checked=ed.hidden; $('#edGroup').value=ed.group;
   $('#edGroupWrap').hidden=!ed.custom; $('#edHideWrap').hidden=ed.custom; $('#edDelete').hidden=!ed.custom||isNew;
@@ -721,7 +753,8 @@ function edPreview(){
   const lbl=ed.custom?(ed.label||'New word'):ed.label;
   const it=Object.assign({},ed.base,{label:lbl,e:ed.e||ed.base.e,img:ed.img,audio:ed.audio,key:'preview'});
   $('#edPreview').innerHTML=tileHTML(it).replace('class="tile dwell','class="tile').replace(/ data-act="tile"/,'').replace('<button','<div').replace(/<\/button>$/,'</div>');
-  $('#edPhotoState').textContent=ed.img?'Photo added':'No photo'; $('#edAudioState').textContent=ed.custom?(ed.audio?'Recording added':'Uses the computer voice'):(ed.audio?`${LANGS[settings.lang].name} recording added`:`No ${LANGS[settings.lang].name} recording yet. Switch the language to record the other one.`);
+  $('#edPhotoState').textContent=ed.img?'Photo added':'No photo'; const ln=LANGS[ed.lang].name, ww=(ed.custom?ed.label:(ed.label||word(Object.assign({},ed.base,{label:''}),ed.lang)))||'this word';
+  $('#edAudioState').textContent=ed.audio?`${ln} recording for “${ww}”. It only plays when the board is in ${ln}.`:`No ${ln} recording for “${ww}” yet. To record the other language, switch the board language first.`;
   $('#edPhotoDel').hidden=!ed.img; $('#edAudioDel').hidden=!ed.audio; $('#edAudioPlay').hidden=!ed.audio;
 }
 $('#edLabel').addEventListener('input',e=>{ ed.label=e.target.value; edPreview(); });
@@ -774,14 +807,15 @@ $('#edCancel').addEventListener('click',()=>{ ed.newMedia.forEach(k=>{ idb.del(k
 $('#edSave').addEventListener('click',()=>{
   if(ed.custom){
     if(!ed.label.trim()){ $('#edLabel').focus(); toast('Type the word or phrase first.'); return; }
-    if(ed.isNew) custom.push({id:uid('w'),label:ed.label.trim(),e:ed.e||'💛',img:ed.img,audio:ed.audio,group:ed.group});
-    else { const c=custom.find(z=>'mine:'+z.id===ed.key); Object.assign(c,{label:ed.label.trim(),e:ed.e||'💛',img:ed.img,audio:ed.audio,group:ed.group}); }
+    const setA=c=>{ c.audioL=Object.assign({},c.audioL||{}); if(ed.audio) c.audioL[ed.lang]=ed.audio; else delete c.audioL[ed.lang]; c.audio=''; return c; };
+    if(ed.isNew) custom.push(setA({id:uid('w'),label:ed.label.trim(),e:ed.e||'💛',img:ed.img,group:ed.group}));
+    else { const c=custom.find(z=>'mine:'+z.id===ed.key); setA(Object.assign(c,{label:ed.label.trim(),e:ed.e||'💛',img:ed.img,group:ed.group})); }
   } else {
-    const o={}; if(ed.label.trim()) o.label=ed.label.trim(); if(ed.e&&ed.e!==baseItem(ed.key).e) o.e=ed.e; if(ed.img) o.img=ed.img; if(ed.hidden) o.hidden=true;
-    const al=Object.assign({},(ov[ed.key]||{}).audioL||{}); if(ed.audio) al[settings.lang]=ed.audio; else delete al[settings.lang]; if(Object.keys(al).length) o.audioL=al;
+    const prev=ov[ed.key]||{}; const o={}; const ll=Object.assign({},prev.labelL||{}); if(ed.label.trim()) ll[ed.lang]=ed.label.trim(); else delete ll[ed.lang]; if(Object.keys(ll).length) o.labelL=ll; if(ed.e&&ed.e!==baseItem(ed.key).e) o.e=ed.e; if(ed.img) o.img=ed.img; if(ed.hidden) o.hidden=true;
+    const al=Object.assign({},prev.audioL||{}); if(ed.audio) al[ed.lang]=ed.audio; else delete al[ed.lang]; if(Object.keys(al).length) o.audioL=al;
     if(Object.keys(o).length) ov[ed.key]=o; else delete ov[ed.key];
   }
-  const wasNew=ed.isNew, g=ed.group; save(); recByWord=null; closeEditor(); gcMedia(); renderAll();
+  const wasNew=ed.isNew, g=ed.group; save(); recByWord=null; closeEditor(); gcMedia(); refreshMsg(); renderAll();
   toast(wasNew?`Added to ${PERSONAL.find(p=>p[0]===g)[2][0]}`:'Button saved');
 });
 $('#edDelete').addEventListener('click',()=>{ custom=custom.filter(z=>'mine:'+z.id!==ed.key); save(); recByWord=null; closeEditor(); gcMedia(); renderAll(); toast('Word deleted'); });
@@ -792,10 +826,10 @@ function placeOf(k){ const c=k.split(':')[0]; if(c==='mine') return 'My words'; 
   if(c==='core') return 'Core words'; if(c==='quick') return 'QuickFires'; const l=listOf(c); return l?l.n[0]:c; }
 function renderRecList(){
   const el=$('#recList'); if(!el) return;
-  const where=idb.where(); const recs=[...Object.entries(ov).flatMap(([k,o])=>Object.entries(o.audioL||{}).filter(([,a])=>a).map(([lang,a])=>({key:k,audio:a,lang}))),...custom.filter(c=>c.audio).map(c=>({key:'mine:'+c.id,audio:c.audio}))];
+  const where=idb.where(); const recs=[...Object.entries(ov).flatMap(([k,o])=>Object.entries(o.audioL||{}).filter(([,a])=>a).map(([lang,a])=>({key:k,audio:a,lang}))),...custom.flatMap(c=>Object.entries(c.audioL||{}).filter(([,a])=>a).map(([lang,a])=>({key:'mine:'+c.id,audio:a,lang})))];
   $('#recWhere').textContent=where==='db'?'Recordings are saved in this browser on this device.':where==='ls'?'Recordings are saved in this browser’s small backup store. Keep them short (a few seconds each).':'This browser is not allowing Khuluma to save recordings, so they are lost when the page reloads. Open the board in Safari or Chrome directly, not in a private window.';
-  el.innerHTML=recs.length?recs.map(r=>{ const it=getItem(r.key); const w=r.lang?(()=>{ const b=ownItem(r.key,r.lang); return b?word(b,r.lang):r.key; })():(it?word(it):r.key);
-    return `<div><span>🎙️ ${esc(w)} <span class="note-text" style="margin:0">· ${r.lang?LANGS[r.lang].name:'Both languages'} · ${esc(placeOf(r.key))}</span></span><span><button class="btn" data-play="${esc(r.audio)}">Play</button> <span class="note-text" data-res="${esc(r.audio)}" style="margin:0"></span></span></div>`; }).join(''):
+  el.innerHTML=recs.length?recs.map(r=>{ const it=getItem(r.key); const b=ownItem(r.key,r.lang); const w=b?word(b,r.lang):r.key;
+    return `<div><span>🎙️ ${esc(w)} <span class="note-text" style="margin:0">· ${LANGS[r.lang].name} · ${esc(placeOf(r.key))}</span></span><span><button class="btn" data-play="${esc(r.audio)}">Play</button> <span class="note-text" data-res="${esc(r.audio)}" style="margin:0"></span></span></div>`; }).join(''):
     '<div class="empty-state" style="display:block">No buttons have a recording yet. Edit a button and choose a recording, then press Save.</div>';
 }
 $('#recList')&&$('#recList').addEventListener('click',async e=>{ const b=e.target.closest('[data-play]'); if(!b) return; const k=b.dataset.play; stopAll();
@@ -890,7 +924,7 @@ const blobToDataURL=b=>new Promise(res=>{const r=new FileReader(); r.onload=()=>
 function dataURLToBlob(d){ const [h,b64]=d.split(','); const mime=(h.match(/data:([^;]+)/)||[])[1]||'application/octet-stream'; const bin=atob(b64); const a=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) a[i]=bin.charCodeAt(i); return new Blob([a],{type:mime}); }
 $('#dlBackup').addEventListener('click',async()=>{
   const media={}; for(const k of usedMedia()){ const b=await idb.get(k); if(b) media[k]=await blobToDataURL(b); }
-  saveFile(`khuluma-backup-${today()}.json`,JSON.stringify({app:'khuluma',v:5,settings,custom,ov,scenes:scenesC,log,media}));
+  saveFile(`khuluma-backup-${today()}.json`,JSON.stringify({app:'khuluma',v:6,recv:REC_V,settings,custom,ov,scenes:scenesC,log,media}));
 });
 $('#restoreBtn').addEventListener('click',()=>$('#restoreFile').click());
 $('#restoreFile').addEventListener('change',async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return;
@@ -898,7 +932,8 @@ $('#restoreFile').addEventListener('change',async e=>{ const f=e.target.files[0]
     for(const [k,v] of Object.entries(d.media||{})){ await idb.put(k,dataURLToBlob(v)); }
     settings=Object.assign({},DEF,d.settings||{}); if(!LANGS[settings.lang]) settings.lang='en'; if(!GRID_IDS.includes(settings.grid)) settings.grid='8x6';
     custom=(d.custom||[]).map(c=>Object.assign({group:'family'},c)); ov=d.ov||{}; scenesC=d.scenes||[]; log=Object.assign(LOGDEF(),d.log||{});
-    save(); saveLog(); recByWord=null; await preloadMedia(); view=gaze()?'home':'core'; hist=[]; syncSettings(); renderAll(); $('#backupNote').textContent='Backup restored.'; toast('Backup restored');
+    custom.forEach(c=>{ if(!c.audioL) c.audioL={}; }); const old=(d.recv||0)<REC_V; cleanLegacy(old); msg=[];
+    save(); purgeMedia(); saveLog(); recByWord=null; await preloadMedia(); view=gaze()?'home':'core'; hist=[]; syncSettings(); renderAll(); $('#backupNote').textContent=old?'Backup restored. It was made before English and Afrikaans recordings were separated, so its recordings were left out. Record them again in each language.':'Backup restored.'; toast('Backup restored');
   }catch(err){ $('#backupNote').textContent='That file is not a Khuluma backup.'; } });
 
 // ---------- gaze training ----------
@@ -959,5 +994,6 @@ $('#resetZones').addEventListener('click',()=>{ log.zones=LOGDEF().zones; saveLo
 async function wake(){ try{ await navigator.wakeLock?.request('screen'); }catch(e){} }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') wake(); });
 let rz=0; addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(()=>{ if(!practiceOpen()) renderBoard(); if(settings.mode==='scan'&&!overlayOpen()) startScan(); },200); });
-window.__khuluma={compose,ITEMS,getItem,go:v=>{go(v);},suggestions};
-(async()=>{ renderAll(); applyMode(); wake(); await idb.open(); await preloadMedia(); renderAll(); applyMode(); })();
+window.__khuluma={compose,ITEMS,getItem,go:v=>{go(v);},suggestions,fresh,get msg(){return msg;},set msg(v){msg=v;},get ov(){return ov;},get custom(){return custom;},refreshMsg};
+(async()=>{ renderAll(); applyMode(); wake(); await idb.open(); await preloadMedia(); renderAll(); applyMode(); purgeMedia();
+  if(recReset) setTimeout(()=>toast('Recordings were cleared so English and Afrikaans stay separate. Record each word again with the board in its own language.'),800); })();
