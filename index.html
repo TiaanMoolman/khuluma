@@ -2482,7 +2482,7 @@ window.__khuluma={compose,ITEMS,getItem,go:v=>{go(v);},suggestions,fresh,get msg
 (async()=>{ renderAll(); applyMode(); wake(); await idb.open(); await preloadMedia(); renderAll(); applyMode(); purgeMedia();
   if(recReset) setTimeout(()=>toast('Recordings were cleared so English and Afrikaans stay separate. Record each word again with the board in its own language.'),800); })();
 
-window.KHULUMA_CONFIG={};
+window.KHULUMA_CONFIG={"supabaseUrl": "https://nqwjfinmgpnpzqrtzzss.supabase.co", "supabaseAnonKey": "sb_publishable_yWGsWqBJdyRLDxQRCn-X6A_IWmAAaA8", "siteUrl": "https://khuluma-phi.vercel.app/"};
 // ---------- accounts & sync (Supabase) ----------
 // Therapists sign up, add children and invite parents. A parent signs in once on the child's iPad;
 // the board then keeps working offline and syncs when there is a connection.
@@ -2523,7 +2523,7 @@ if(inviteParam){ LS.set('khuluma.cloud.invite',inviteParam); try{ const u=new UR
 if(enabled) start();
 
 function loadLib(){ return new Promise((res,rej)=>{ if(window.supabase) return res();
-  const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
+  const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js';
   s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
 
 async function start(){

@@ -38,7 +38,7 @@ if(inviteParam){ LS.set('khuluma.cloud.invite',inviteParam); try{ const u=new UR
 if(enabled) start();
 
 function loadLib(){ return new Promise((res,rej)=>{ if(window.supabase) return res();
-  const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
+  const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js';
   s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
 
 async function start(){
