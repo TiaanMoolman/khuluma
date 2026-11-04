@@ -1911,7 +1911,9 @@ function pickVoice(){
   const lv=langVoices(settings.lang); if(lv.length) return lv.find(v=>/ZA/i.test(v.lang))||lv[0];
   const en=langVoices('en'); return en.find(v=>/ZA/i.test(v.lang))||en.find(v=>/GB/i.test(v.lang))||en[0]||null;
 }
-function utter(text){ const u=new SpeechSynthesisUtterance(text); const v=pickVoice(); if(v){u.voice=v;u.lang=v.lang;} else u.lang=LANGS[settings.lang].bcp; u.rate=settings.rate; return u; }
+// Some voices read a lone capital "I" as "capital I". Say the word "eye" instead (same sound) when "I" is spoken on its own.
+function speakable(text){ const t=String(text); if(settings.lang!=='en') return t; return /^\s*I\s*[.!?]?\s*$/.test(t)?'eye':t.replace(/(^|[\s.,!?])I(?=[.,!?]?\s*$)/,'$1eye'); }
+function utter(text){ const u=new SpeechSynthesisUtterance(speakable(text)); const v=pickVoice(); if(v){u.voice=v;u.lang=v.lang;} else u.lang=LANGS[settings.lang].bcp; u.rate=settings.rate; return u; }
 let curAudio=null, speakTok=0;
 function stopAll(){ speakTok++; try{speechSynthesis.cancel();}catch(e){} if(curAudio){ try{curAudio.pause();}catch(e){} curAudio=null; } if(curSrc){ try{curSrc.stop();}catch(e){} curSrc=null; } }
 let curSrc=null;
