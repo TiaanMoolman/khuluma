@@ -69,7 +69,7 @@ const GRID_IDS=GRIDS.map(g=>g[0]);
 const validGrid=g=>{ const m=/^(\d+)x(\d+)$/.exec(g||''); return !!m&&+m[1]>=1&&+m[1]<=10&&+m[2]>=1&&+m[2]<=6; };
 const DEF={mode:'ipad',dwell:1200,scan:1500,guard:700,grid:'8x6',lang:'en',lang2:'',showL2:false,labels:true,speakEach:true,hc:false,voice:'',rate:0.9,
   psize:'220',restBtn:true,skipWeak:false,partner:false,simpleBody:false,mirror:true,grammar:true,hs:'124',layout:'core',
-  cvi:false,cviGrid:'2x1',cviColour:'#ffd400',sil:false,motion:'gentle',spotMs:3500,field:'centre',lookSpeak:false,suggest:true,tileSize:100,bubble:false,bOut:8,bGap:5,bLight:false,bHide:false,cviFont:'nunito',cviText:110};
+  cvi:false,cviGrid:'2x1',cviColour:'#ffd400',sil:false,motion:'gentle',spotMs:3500,field:'centre',lookSpeak:false,suggest:true,tileSize:100,tileStyle:'classic',bubble:false,bOut:8,bGap:5,bLight:false,bHide:false,cviFont:'nunito',cviText:110};
 const CVI_FONTS={nunito:'"Nunito",system-ui,sans-serif',varela:'"Varela Round",system-ui,sans-serif',andika:'"Andika",system-ui,sans-serif',atkinson:'"Atkinson Hyperlegible",system-ui,sans-serif'};
 // Word bubbling: copies of the word stacked in rings. The gap ring (background colour) sits on top of the outline ring (highlight colour).
 function bubbleShadow(gap,out,col,bg){
@@ -332,7 +332,7 @@ function renderUI(){
   $('#langBtn').hidden=!settings.lang2;
   if(settings.lang2) $('#langCodes').textContent=`${LANGS[settings.lang].code} ⇄ ${LANGS[settings.lang2].code}`;
   app.classList.toggle('gaze',gaze());
-  app.classList.toggle('cvi',!!settings.cvi); document.body.classList.toggle('cvi-on',!!settings.cvi);
+  app.classList.toggle('cvi',!!settings.cvi); app.classList.toggle('ts-classic',settings.tileStyle==='classic'&&!settings.cvi); document.body.classList.toggle('cvi-on',!!settings.cvi);
   app.classList.toggle('sil',!!settings.sil); ['gentle','spotlight'].forEach(m=>app.classList.toggle('motion-'+m,settings.cvi&&settings.motion===m));
   ['left','right','lower','centre'].forEach(f=>app.classList.toggle('field-'+f,settings.cvi&&settings.field===f));
   app.style.setProperty('--cvi',settings.cviColour); applyCviText(app); app.classList.toggle('nolabels',!settings.labels); app.classList.toggle('hc',settings.hc); app.classList.toggle('editing',editing);
@@ -677,7 +677,7 @@ function syncSettings(){
   $('#lang').value=settings.lang;
   $('#lang2').innerHTML='<option value="">None</option>'+Object.entries(LANGS).filter(([k])=>k!==settings.lang).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('');
   $('#lang2').value=settings.lang2; $('#gridSize').value=GRID_IDS.includes(settings.grid)?settings.grid:'custom'; syncGridCustom();
-  $('#tileSize').value=settings.tileSize; $('#tileSizeOut').textContent=settings.tileSize>=100?'Fill the space':settings.tileSize+'%'; $('#layout').value=settings.layout; $('#hs').value=settings.hs;
+  $('#tileStyle').value=settings.tileStyle; $('#tileSize').value=settings.tileSize; $('#tileSizeOut').textContent=settings.tileSize>=100?'Fill the space':settings.tileSize+'%'; $('#layout').value=settings.layout; $('#hs').value=settings.hs;
   BOOLS.forEach(k=>$('#'+k).checked=!!settings[k]);
   $('#partnerOn').checked=settings.partner;
   $('#cvi').checked=!!settings.cvi; $('#cviGrid').value=settings.cviGrid; $('#motion').value=settings.motion; $('#field').value=settings.field;
@@ -701,6 +701,7 @@ function syncGridCustom(){ const [c,r]=settings.grid.split('x').map(Number), cu=
   $('#gridTotal').textContent=c*r+' buttons per page'; }
 $('#gridSize').addEventListener('change',e=>{ if(e.target.value!=='custom') settings.grid=e.target.value; page=0; save(); syncGridCustom(); renderCoreMap(); });
 ['gCols','gRows'].forEach(id=>$('#'+id).addEventListener('input',()=>{ settings.grid=$('#gCols').value+'x'+$('#gRows').value; page=0; save(); syncGridCustom(); renderCoreMap(); }));
+$('#tileStyle').addEventListener('change',e=>{ settings.tileStyle=e.target.value; save(); });
 $('#tileSize').addEventListener('input',e=>{ settings.tileSize=+e.target.value; $('#tileSizeOut').textContent=settings.tileSize>=100?'Fill the space':settings.tileSize+'%'; save(); });
 $('#layout').addEventListener('change',e=>{ settings.layout=e.target.value; hist=[]; page=0;
   if(gaze()){ view='home'; if(['8x6','10x6','6x5'].includes(settings.grid)) settings.grid='4x4'; } else { view='core'; }

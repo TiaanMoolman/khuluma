@@ -430,6 +430,32 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
 .pill{display:inline-block;font-size:.75rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:99px;background:var(--surface);border:1px solid var(--line);color:var(--muted)}
 .invite-link{font-family:ui-monospace,monospace;font-size:.82rem;word-break:break-all;background:var(--bg);border-radius:10px;padding:10px;margin-top:8px;user-select:all}
 #syncDot{font-size:.8rem;color:var(--muted)}
+
+/* classic buttons: word on top, big picture below, raised key with a soft word-class tint */
+#app.ts-classic .tile{grid-template-rows:auto minmax(0,1fr);border-radius:10px;
+  background:linear-gradient(color-mix(in srgb,var(--fk) 7%,var(--surface)),color-mix(in srgb,var(--fk) 15%,var(--surface)));
+  border:1.5px solid color-mix(in srgb,var(--fk) 32%,var(--line));
+  box-shadow:0 3px 0 color-mix(in srgb,var(--fk) 25%,color-mix(in srgb,var(--ink) 22%,transparent)),0 5px 10px rgba(20,30,50,.10)}
+#app.ts-classic .tile:active{transform:translateY(2px);box-shadow:0 1px 0 color-mix(in srgb,var(--ink) 25%,transparent)}
+#app.ts-classic .tile .lbl{grid-row:1;background:transparent;border:0;color:var(--ink);font-weight:500;
+  font-size:clamp(10px,min(12cqh,10.5cqw),30px);padding:6% 6% 0;line-height:1.1}
+#app.ts-classic .tile .pic{grid-row:2;padding:3% 8% 9%}
+#app.ts-classic .tile .sym{font-size:min(54cqh,54cqw)}
+#app.ts-classic .tile .pic img{border-radius:6px}
+#app.ts-classic .tile.folder{--fk:var(--accent)}
+#app.ts-classic .tile.folder .pic{background:transparent}
+#app.ts-classic .tile.folder .lbl{background:transparent;color:var(--ink);font-weight:600}
+#app.ts-classic .tile.folder::after{content:"";position:absolute;top:-1px;right:-1px;width:min(18cqw,18cqh);aspect-ratio:1;border-top-right-radius:9px;
+  background:linear-gradient(225deg,var(--bg) 50%,color-mix(in srgb,var(--accent) 45%,var(--line)) 50%)}
+#app.ts-classic .tile.empty,#app.ts-classic .tile.note,#app.ts-classic .tile.weak{background:transparent;box-shadow:none}
+#app.ts-classic .nv{border-radius:10px;color:#fff;background:linear-gradient(#7d98b6,#6884a5);box-shadow:0 3px 0 #4c6686}
+#app.ts-classic .nv[aria-current="true"]{background:linear-gradient(#4f6d90,#3f5b7c);box-shadow:0 3px 0 #2c4361}
+#app.ts-classic .nv.hold{background:transparent;color:var(--muted);box-shadow:none}
+#app.ts-classic .yn{border-radius:10px;border:1.5px solid color-mix(in srgb,var(--fk) 32%,var(--line));border-bottom:1.5px solid color-mix(in srgb,var(--fk) 32%,var(--line));
+  background:linear-gradient(color-mix(in srgb,var(--fk) 7%,var(--surface)),color-mix(in srgb,var(--fk) 15%,var(--surface)));box-shadow:0 3px 0 color-mix(in srgb,var(--ink) 22%,transparent)}
+#app.ts-classic .yn .lbl{order:-1;font-weight:500}
+#app.ts-classic .tile .cnt{left:9px;right:auto}
+#app.ts-classic .pg{border-radius:10px;color:#fff;background:linear-gradient(#7d98b6,#6884a5);box-shadow:0 3px 0 #4c6686}
 </style>
 
 <div id="app">
@@ -538,6 +564,7 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
           <div class="row"><label for="gRows">Rows down</label><input type="range" id="gRows" min="1" max="6" step="1"><output id="gRowsOut"></output></div>
           <p class="note-text" id="gridTotal" style="margin:0 0 6px"></p>
         </div>
+        <div class="row"><label for="tileStyle">Button style<small>Classic: the word on top and a large picture below, on raised buttons. Picture card: the picture on top and the word in a coloured band below.</small></label><select id="tileStyle"><option value="classic">Classic (word on top)</option><option value="card">Picture card (word below)</option></select><span></span></div>
         <div class="row"><label for="tileSize">Button size<small>Make the buttons smaller to leave more space between them. Space helps eye gaze and children who touch the wrong button.</small></label><input type="range" id="tileSize" min="50" max="100" step="5"><output id="tileSizeOut"></output></div>
         <div id="coreMap"></div>
       </div>
