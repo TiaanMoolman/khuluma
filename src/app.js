@@ -62,6 +62,20 @@ const LEVELS=[
  {lbl:['A lot','Baie'],say:['It hurts a lot.','Dit maak baie seer.'],col:'--s3'},
  {lbl:['Worst pain','Ergste pyn'],say:['It is the worst pain.','Dis die ergste pyn.'],col:'--s4'},
  {lbl:['Tight / cramp','Styf / kramp'],say:['It feels tight.','Dit trek styf.'],col:'--fk-d',tight:true}];
+// isiZulu, isiXhosa, Sesotho for the screens above (draft: check with first-language speakers)
+ATTN.push('Ngicela uze lapha.','Nceda uze apha.','Ka kopo tloo mona.');
+SAMPLE.push('Sawubona. Ngicela amanzi.','Molo. Nceda, ndifuna amanzi.','Dumela. Ka kopo, ke batla metsi.');
+[['head','Ikhanda','Intloko','Hlooho'],['chest','Isifuba','Isifuba','Sefuba'],['tummy','Isisu','Isisu','Mpa'],['back','Umhlane','Umqolo','Mokokotlo'],
+ ['arm','Ingalo','Ingalo','Letsoho'],['hand','Isandla','Isandla','Letsoho'],['leg','Umlenze','Umlenze','Leoto'],['foot','Unyawo','Unyawo','Leoto'],['body','Umzimba','Umzimba','Mmele']]
+ .forEach(([k,...w])=>PARTS[k].push(...w));
+SIDES.left.push('kwesobunxele','ekhohlo','le letshehadi'); SIDES.right.push('kwesokudla','ekunene','le letona');
+[[['Akubuhlungu','Akubuhlungu','Ha ho bohloko'],['Akubuhlungu.','Akubuhlungu.','Ha ho bohloko.']],
+ [['Kancane','Kancinci','Hanyane'],['Kubuhlungu kancane.','Kubuhlungu kancinci.','Ho bohloko hanyane.']],
+ [['Kuphakathi','Kuphakathi','Ho bohloko'],['Kubuhlungu.','Kubuhlungu.','Ho bohloko.']],
+ [['Kakhulu','Kakhulu','Haholo'],['Kubuhlungu kakhulu.','Kubuhlungu kakhulu.','Ho bohloko haholo.']],
+ [['Kubuhlungu kakhulu','Kubuhlungu kakhulu','Bohloko bo boholo'],['Kubuhlungu kakhulu impela.','Kubuhlungu kakhulu kunene.','Ke bohloko bo boholo ka ho fetisisa.']],
+ [['Kuqinile','Kuqinile','Ho tiile'],['Kuzwakala kuqinile.','Kuva kuqinile.','Ho a tiya.']]].forEach(([l,s],i)=>{ LEVELS[i].lbl.push(...l); LEVELS[i].say.push(...s); });
+SCENES.forEach(s=>{ xfill(s.n); s.hot.forEach(h=>xfill(h.w)); });
 
 // ---------- state & storage ----------
 const GRID_IDS=GRIDS.map(g=>g[0]);
@@ -187,7 +201,7 @@ function fresh(it,lang=settings.lang){ if(!it) return it;
 function refreshMsg(){ msg=msg.map(it=>fresh(it)); }
 const L=(l=settings.lang)=>LI[l]??0;
 const word=(it,l=settings.lang)=>wordOf(it,l);
-const ui=(k,l)=>UI[k][L(l)];
+const ui=(k,l)=>{ const i=L(l); return i>=2?((XU[k]||[])[i-2]||UI[k][0]):UI[k][i]; };
 const dims=()=>(settings.cvi?settings.cviGrid:settings.grid).split('x').map(Number);
 const sentence=(list=msg)=>compose(list,settings.lang,settings.grammar);
 const listOf=id=>LISTS[id]||TOPICS[id];
@@ -320,7 +334,7 @@ function learnPair(prev,it){ const a=prev?prev.key:'^', b=it.key; if(!b||b==='pa
   const ks=Object.keys(log.next); if(ks.length>400) delete log.next[ks[0]]; }
 function renderMsg(){
   const s=sentence(), joined=capF(msg.map((it,i)=>plainW(it,settings.lang,i>0)).join(' '));
-  msgEl.innerHTML=msg.length?`<span class="chips">${msg.map(chipHTML).join('')}</span>${s!==joined?`<span class="says">${settings.lang==='af'?'Sê':'Says'}: <b>${esc(s)}</b></span>`:''}`:'<span class="ph">Choose pictures to build a message</span>';
+  msgEl.innerHTML=msg.length?`<span class="chips">${msg.map(chipHTML).join('')}</span>${s!==joined?`<span class="says">${settings.lang==='af'?'Sê':L()>=2?XSAYS[L()-2]:'Says'}: <b>${esc(s)}</b></span>`:''}`:'<span class="ph">Choose pictures to build a message</span>';
   const ch=msgEl.querySelector('.chips'); if(ch) ch.scrollLeft=ch.scrollWidth;
   const p=$('#partner'); p.hidden=!settings.partner;
   if(settings.partner) p.innerHTML=msg.length?esc(s):'<span class="ph">The message will appear here for you</span>';
@@ -400,7 +414,7 @@ function face(level){
 const tightIcon=()=>`<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" fill="var(--fk-d)"/><path d="M22 50 L34 38 L46 62 L58 38 L70 62 L80 50" stroke="#fff" stroke-width="7" fill="none" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 function sideOf(n){ if(!n) return null; return ((n===1)===settings.mirror)?'left':'right'; }
 function partName(p,l=settings.lang){ const i=L(l), name=PARTS[p.part][i]; if(!p.side) return name; const s=SIDES[p.side][i];
-  return i===0?capF(s)+' '+name.toLowerCase():capF(s)+name.toLowerCase(); }
+  return i===0?capF(s)+' '+name.toLowerCase():i>=2?name+' '+s:capF(s)+name.toLowerCase(); }
 function renderPain(){
   const regs=settings.simpleBody?REG_SIMPLE:REG_DETAIL, sel=painPart?painPart.id:'';
   const parts=regs.map(([part,n,b])=>{const id=part+(n||''); const p={part,side:sideOf(n)};

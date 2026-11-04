@@ -707,6 +707,7 @@ function plainW(it,lang,mid){ let w=wordOf(it,lang); if(mid&&!it.custom&&!it.lab
 const isV=it=>!!(it&&it.g&&it.g.t==='V'&&VERBS[it.g.v]);
 function compose(list,lang,grammar=true){
   if(!list.length) return '';
+  if(typeof BANTU!=='undefined'&&BANTU.includes(lang)) return grammar?composeB(list,lang):capF(list.map((it,i)=>plainW(it,lang,i>0)).join(' '));
   const q=list[0]&&list[0].c==='q'&&!/\s/.test(list[0].w[0])?list[0]:null;
   const vi=grammar?list.findIndex(isV):-1;
   const end=s=>{ s=capF(s.replace(/\s+/g,' ').trim()); return q&&!/[?]$/.test(s)?s+'?':s; };
