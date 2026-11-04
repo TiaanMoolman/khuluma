@@ -933,6 +933,9 @@ function reportText(){
 }
 $('#copyReport').addEventListener('click',async()=>{ const t=reportText(); $('#reportText').value=t;
   try{ await navigator.clipboard.writeText(t); toast('Report copied'); }catch(e){ const ta=$('#reportText'); ta.focus(); ta.select(); toast('Select all and copy the report text'); } });
+hold($('#wipeDevice'),2500,async()=>{ try{ Object.keys(localStorage).filter(k=>k.startsWith('khuluma')).forEach(k=>localStorage.removeItem(k)); }catch(e){}
+  try{ idb.db&&idb.db.close(); await new Promise(r=>{ const q=indexedDB.deleteDatabase('khuluma'); q.onsuccess=q.onerror=q.onblocked=()=>r(); }); }catch(e){}
+  toast('Everything on this device was deleted'); setTimeout(()=>location.reload(),900); });
 hold($('#resetLog'),1500,()=>{ const z=log.zones; log=LOGDEF(); log.zones=z; saveLog(); renderInsights(); toast('Insights cleared'); });
 
 // ---------- downloads (backup & report) ----------

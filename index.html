@@ -575,7 +575,9 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
       </div>
     </div>
 
-    <div data-panel="account" class="panel" hidden><div id="acct" class="panel"></div></div>
+    <div data-panel="account" class="panel" hidden><div id="acct" class="panel"></div>
+      <div class="card"><h2>Start fresh on this device</h2><p class="note-text" style="margin:0 0 12px">Deletes everything Khuluma has saved on this device: the board, settings, personal words, photos, recordings, insights and the sign-in. Data saved online in a child’s account is not deleted here.</p>
+        <div class="btns"><button class="btn danger holdbtn" id="wipeDevice">Hold to delete everything on this device</button></div></div></div>
 
     <div data-panel="personal" class="panel" hidden>
       <div class="card">
@@ -2406,6 +2408,9 @@ function reportText(){
 }
 $('#copyReport').addEventListener('click',async()=>{ const t=reportText(); $('#reportText').value=t;
   try{ await navigator.clipboard.writeText(t); toast('Report copied'); }catch(e){ const ta=$('#reportText'); ta.focus(); ta.select(); toast('Select all and copy the report text'); } });
+hold($('#wipeDevice'),2500,async()=>{ try{ Object.keys(localStorage).filter(k=>k.startsWith('khuluma')).forEach(k=>localStorage.removeItem(k)); }catch(e){}
+  try{ idb.db&&idb.db.close(); await new Promise(r=>{ const q=indexedDB.deleteDatabase('khuluma'); q.onsuccess=q.onerror=q.onblocked=()=>r(); }); }catch(e){}
+  toast('Everything on this device was deleted'); setTimeout(()=>location.reload(),900); });
 hold($('#resetLog'),1500,()=>{ const z=log.zones; log=LOGDEF(); log.zones=z; saveLog(); renderInsights(); toast('Insights cleared'); });
 
 // ---------- downloads (backup & report) ----------
