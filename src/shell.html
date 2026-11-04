@@ -531,7 +531,13 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
       <div class="card">
         <h2>Layout</h2>
         <div class="row"><label for="layout">Screen layout<small>Core board: menu on the left and the core words in the middle. Eye gaze: a home screen of big choices, with Yes and No always on the right.</small></label><select id="layout"><option value="core">Core board</option><option value="gaze">Eye gaze (big targets)</option></select><span></span></div>
-        <div class="row"><label for="gridSize">Core words and buttons per page<small>Every core word keeps its place as the grid grows</small></label><select id="gridSize"></select><span></span></div>
+        <div class="row"><label for="gridSize">Words and buttons per page<small>Fewer buttons make each one bigger. Every core word keeps its place as the grid grows.</small></label><select id="gridSize"></select><span></span></div>
+        <div id="gridCustom" hidden>
+          <div class="row"><label for="gCols">Buttons across</label><input type="range" id="gCols" min="1" max="10" step="1"><output id="gColsOut"></output></div>
+          <div class="row"><label for="gRows">Rows down</label><input type="range" id="gRows" min="1" max="6" step="1"><output id="gRowsOut"></output></div>
+          <p class="note-text" id="gridTotal" style="margin:0 0 6px"></p>
+        </div>
+        <div class="row"><label for="tileSize">Button size<small>Make the buttons smaller to leave more space between them. Space helps eye gaze and children who touch the wrong button.</small></label><input type="range" id="tileSize" min="50" max="100" step="5"><output id="tileSizeOut"></output></div>
         <div id="coreMap"></div>
       </div>
       <div class="card">

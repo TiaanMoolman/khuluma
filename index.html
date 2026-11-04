@@ -539,7 +539,13 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
       <div class="card">
         <h2>Layout</h2>
         <div class="row"><label for="layout">Screen layout<small>Core board: menu on the left and the core words in the middle. Eye gaze: a home screen of big choices, with Yes and No always on the right.</small></label><select id="layout"><option value="core">Core board</option><option value="gaze">Eye gaze (big targets)</option></select><span></span></div>
-        <div class="row"><label for="gridSize">Core words and buttons per page<small>Every core word keeps its place as the grid grows</small></label><select id="gridSize"></select><span></span></div>
+        <div class="row"><label for="gridSize">Words and buttons per page<small>Fewer buttons make each one bigger. Every core word keeps its place as the grid grows.</small></label><select id="gridSize"></select><span></span></div>
+        <div id="gridCustom" hidden>
+          <div class="row"><label for="gCols">Buttons across</label><input type="range" id="gCols" min="1" max="10" step="1"><output id="gColsOut"></output></div>
+          <div class="row"><label for="gRows">Rows down</label><input type="range" id="gRows" min="1" max="6" step="1"><output id="gRowsOut"></output></div>
+          <p class="note-text" id="gridTotal" style="margin:0 0 6px"></p>
+        </div>
+        <div class="row"><label for="tileSize">Button size<small>Make the buttons smaller to leave more space between them. Space helps eye gaze and children who touch the wrong button.</small></label><input type="range" id="tileSize" min="50" max="100" step="5"><output id="tileSizeOut"></output></div>
         <div id="coreMap"></div>
       </div>
       <div class="card">
@@ -1531,9 +1537,11 @@ const LEVELS=[
 
 // ---------- state & storage ----------
 const GRID_IDS=GRIDS.map(g=>g[0]);
+// any grid from 1 × 1 to 10 columns × 6 rows can be chosen; the presets are just shortcuts
+const validGrid=g=>{ const m=/^(\d+)x(\d+)$/.exec(g||''); return !!m&&+m[1]>=1&&+m[1]<=10&&+m[2]>=1&&+m[2]<=6; };
 const DEF={mode:'ipad',dwell:1200,scan:1500,guard:700,grid:'8x6',lang:'en',lang2:'',showL2:false,labels:true,speakEach:true,hc:false,voice:'',rate:0.9,
   psize:'220',restBtn:true,skipWeak:false,partner:false,simpleBody:false,mirror:true,grammar:true,hs:'124',layout:'core',
-  cvi:false,cviGrid:'2x1',cviColour:'#ffd400',sil:false,motion:'gentle',spotMs:3500,field:'centre',lookSpeak:false,suggest:true,bubble:false,bOut:8,bGap:5,bLight:false,bHide:false,cviFont:'nunito',cviText:110};
+  cvi:false,cviGrid:'2x1',cviColour:'#ffd400',sil:false,motion:'gentle',spotMs:3500,field:'centre',lookSpeak:false,suggest:true,tileSize:100,bubble:false,bOut:8,bGap:5,bLight:false,bHide:false,cviFont:'nunito',cviText:110};
 const CVI_FONTS={nunito:'"Nunito",system-ui,sans-serif',varela:'"Varela Round",system-ui,sans-serif',andika:'"Andika",system-ui,sans-serif',atkinson:'"Atkinson Hyperlegible",system-ui,sans-serif'};
 // Word bubbling: copies of the word stacked in rings. The gap ring (background colour) sits on top of the outline ring (highlight colour).
 function bubbleShadow(gap,out,col,bg){
@@ -1551,7 +1559,7 @@ if(firstRun) Object.assign(settings,{layout:'core',grid:'8x6'});
 if(settings.layout==='standard') settings.layout='core';
 if(!LANGS[settings.lang]) settings.lang='en';
 if(settings.lang2&&(!LANGS[settings.lang2]||settings.lang2===settings.lang)) settings.lang2='';
-if(!GRID_IDS.includes(settings.grid)) settings.grid=settings.layout==='gaze'?'3x3':'8x6';
+if(!validGrid(settings.grid)) settings.grid=settings.layout==='gaze'?'3x3':'8x6';
 let custom=ls.get('khuluma.custom',[]).map((c,i)=>({id:c.id||('c'+i+Date.now().toString(36)),label:c.label||c.w||'',e:c.e||'💛',img:c.img||'',audio:'',audioL:c.audioL||{},group:c.group||'family'}));
 let ov=ls.get('khuluma.ov',{});
 // Recordings and renamed labels belong to one language. Older versions mixed them, so the first time this
@@ -1677,8 +1685,13 @@ function cellMask(c,r){
   for(let i=0;i<c*r;i++){ const col=i%c,row=Math.floor(i/c); if(weak[zoneOf(rect.left+(col+.5)*rect.width/c, rect.top+(row+.5)*rect.height/r)]) mask[i]=false; }
   return mask.filter(Boolean).length>=3?mask:Array(c*r).fill(true);
 }
+function sizeGrid(c,r){ grid.style.setProperty('--c',c); grid.style.setProperty('--r',r);
+  const ts=Math.max(50,Math.min(100,+settings.tileSize||100))/100, box=grid.parentElement&&grid.parentElement.getBoundingClientRect();
+  if(ts>=1||!box||!box.width){ grid.style.removeProperty('gap'); return; }
+  const base=settings.cvi?28:gaze()?18:8, cell=Math.min(box.width/c,box.height/r);
+  grid.style.gap=Math.round(base+cell*(1-ts))+'px'; }
 function layCells(cells){
-  const [c,r]=dims(); grid.style.setProperty('--c',c); grid.style.setProperty('--r',r);
+  const [c,r]=dims(); sizeGrid(c,r);
   const mask=cellMask(c,r), usable=[]; mask.forEach((m,i)=>m&&usable.push(i));
   const per=Math.max(1,usable.length);
   pages=Math.max(1,Math.ceil(cells.length/per)); if(page>=pages) page=pages-1; if(page<0) page=0;
@@ -1706,7 +1719,7 @@ function renderBoard(){
   if(v==='keyboard'){ kbdEl.hidden=false; renderKeyboard(); return; }
   grid.hidden=false;
   if(v==='core'){
-    const [c,r]=dims(); grid.style.setProperty('--c',c); grid.style.setProperty('--r',r);
+    const [c,r]=dims(); sizeGrid(c,r);
     grid.innerHTML=coreLayout(c,r).map(k=>{ const it=getItem(k); return it&&(!it.hidden||editing)?tileHTML(it):'<div class="tile empty" aria-hidden="true"></div>'; }).join('');
     pages=1; return;
   }
@@ -2124,7 +2137,7 @@ function openSettings(tab){ stopScan(); stopSpot(); startDwell(null); stopAll();
 function closeSettings(){ $('#settings').hidden=true; save(); renderAll(); applyMode(); }
 $('#closeSettings').addEventListener('click',closeSettings);
 $('#lang').innerHTML=Object.entries(LANGS).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('');
-$('#gridSize').innerHTML=GRIDS.map(([v,n])=>`<option value="${v}">${n}</option>`).join('');
+$('#gridSize').innerHTML=GRIDS.map(([v,n])=>`<option value="${v}">${n}</option>`).join('')+'<option value="custom">Choose my own…</option>';
 const fmt={dwell:v=>(v/1000).toFixed(1)+' s',scan:v=>(v/1000).toFixed(1)+' s',guard:v=>v?(v/1000).toFixed(1)+' s':'Off',rate:v=>Number(v).toFixed(2)+'×'};
 const BOOLS=['labels','speakEach','hc','showL2','restBtn','skipWeak','simpleBody','mirror','grammar','sil','lookSpeak','suggest','bubble','bLight','bHide'];
 fmt.spotMs=v=>(v/1000).toFixed(1)+' s';
@@ -2133,7 +2146,8 @@ function syncSettings(){
   ['dwell','scan','guard','rate'].forEach(k=>{ $('#'+k).value=settings[k]; $('#'+k+'Out').textContent=fmt[k](settings[k]); });
   $('#lang').value=settings.lang;
   $('#lang2').innerHTML='<option value="">None</option>'+Object.entries(LANGS).filter(([k])=>k!==settings.lang).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('');
-  $('#lang2').value=settings.lang2; $('#gridSize').value=settings.grid; $('#layout').value=settings.layout; $('#hs').value=settings.hs;
+  $('#lang2').value=settings.lang2; $('#gridSize').value=GRID_IDS.includes(settings.grid)?settings.grid:'custom'; syncGridCustom();
+  $('#tileSize').value=settings.tileSize; $('#tileSizeOut').textContent=settings.tileSize>=100?'Fill the space':settings.tileSize+'%'; $('#layout').value=settings.layout; $('#hs').value=settings.hs;
   BOOLS.forEach(k=>$('#'+k).checked=!!settings[k]);
   $('#partnerOn').checked=settings.partner;
   $('#cvi').checked=!!settings.cvi; $('#cviGrid').value=settings.cviGrid; $('#motion').value=settings.motion; $('#field').value=settings.field;
@@ -2152,7 +2166,12 @@ $$('#modes .mode').forEach(b=>b.addEventListener('click',()=>{ settings.mode=b.d
 $('#rate').addEventListener('input',e=>{ settings.rate=+e.target.value; $('#rateOut').textContent=fmt.rate(settings.rate); save(); });
 $('#lang').addEventListener('change',e=>{ settings.lang=e.target.value; if(settings.lang2===settings.lang) settings.lang2=''; settings.voice=''; refreshMsg(); syncSettings(); save(); renderGramDemo(); renderCoreMap(); });
 $('#lang2').addEventListener('change',e=>{ settings.lang2=e.target.value; save(); });
-$('#gridSize').addEventListener('change',e=>{ settings.grid=e.target.value; page=0; save(); renderCoreMap(); });
+function syncGridCustom(){ const [c,r]=settings.grid.split('x').map(Number), cu=$('#gridSize').value==='custom';
+  $('#gridCustom').hidden=!cu; $('#gCols').value=c; $('#gRows').value=r; $('#gColsOut').textContent=c; $('#gRowsOut').textContent=r;
+  $('#gridTotal').textContent=c*r+' buttons per page'; }
+$('#gridSize').addEventListener('change',e=>{ if(e.target.value!=='custom') settings.grid=e.target.value; page=0; save(); syncGridCustom(); renderCoreMap(); });
+['gCols','gRows'].forEach(id=>$('#'+id).addEventListener('input',()=>{ settings.grid=$('#gCols').value+'x'+$('#gRows').value; page=0; save(); syncGridCustom(); renderCoreMap(); }));
+$('#tileSize').addEventListener('input',e=>{ settings.tileSize=+e.target.value; $('#tileSizeOut').textContent=settings.tileSize>=100?'Fill the space':settings.tileSize+'%'; save(); });
 $('#layout').addEventListener('change',e=>{ settings.layout=e.target.value; hist=[]; page=0;
   if(gaze()){ view='home'; if(['8x6','10x6','6x5'].includes(settings.grid)) settings.grid='4x4'; } else { view='core'; }
   save(); syncSettings(); renderCoreMap(); });
@@ -2404,7 +2423,7 @@ $('#restoreBtn').addEventListener('click',()=>$('#restoreFile').click());
 $('#restoreFile').addEventListener('change',async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return;
   try{ const d=JSON.parse(await f.text()); if(d.app!=='khuluma') throw 0;
     for(const [k,v] of Object.entries(d.media||{})){ await idb.put(k,dataURLToBlob(v)); }
-    settings=Object.assign({},DEF,d.settings||{}); if(!LANGS[settings.lang]) settings.lang='en'; if(!GRID_IDS.includes(settings.grid)) settings.grid='8x6';
+    settings=Object.assign({},DEF,d.settings||{}); if(!LANGS[settings.lang]) settings.lang='en'; if(!validGrid(settings.grid)) settings.grid='8x6';
     custom=(d.custom||[]).map(c=>Object.assign({group:'family'},c)); ov=d.ov||{}; scenesC=d.scenes||[]; log=Object.assign(LOGDEF(),d.log||{});
     custom.forEach(c=>{ if(!c.audioL) c.audioL={}; }); const old=(d.recv||0)<REC_V; cleanLegacy(old); msg=[];
     save(); purgeMedia(); saveLog(); recByWord=null; await preloadMedia(); view=gaze()?'home':'core'; hist=[]; syncSettings(); renderAll(); $('#backupNote').textContent=old?'Backup restored. It was made before English and Afrikaans recordings were separated, so its recordings were left out. Record them again in each language.':'Backup restored.'; toast('Backup restored');
@@ -2471,7 +2490,7 @@ let rz=0; addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(()=>{ 
 window.__khulumaApp={
   getData:()=>({settings,custom,ov,scenes:scenesC,log}),
   async setData(d,keepLog){
-    settings=Object.assign({},DEF,d.settings||{}); if(!LANGS[settings.lang]) settings.lang='en'; if(!GRID_IDS.includes(settings.grid)) settings.grid='8x6';
+    settings=Object.assign({},DEF,d.settings||{}); if(!LANGS[settings.lang]) settings.lang='en'; if(!validGrid(settings.grid)) settings.grid='8x6';
     custom=(d.custom||[]).map(c=>Object.assign({group:'family',audioL:{}},c,{audio:''})); ov=d.ov||{}; scenesC=d.scenes||[];
     if(!keepLog) log=Object.assign(LOGDEF(),d.log||{});
     cleanLegacy(false); recByWord=null; msg=[]; save(true); ls.set('khuluma.log',log);
