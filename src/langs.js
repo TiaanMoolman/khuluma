@@ -672,7 +672,7 @@ const NEG_B={zu:{'1s':'angi','2s':'awu','3s':'aka',it:'ayi','1p':'asi','2p':'ani
 const STEM_B={come:{zu:'za',xh:'za'},stop:{zu:'yeka',xh:'yeka',st:'emisa'}};
 const isVow=s=>/^[aeiou]/.test(s);
 function stemOf(vkey,lang){ const s=(STEM_B[vkey]||{})[lang]; if(s) return s; const it=Object.values(ITEMS).find(x=>x.g&&x.g.t==='V'&&x.g.v===vkey); return it?String(it.w[LI[lang]]||it.w[0]).toLowerCase():vkey; }
-function finalNeg(stem,lang){ if(lang==='st') return stem.replace(/a$/,'e'); return stem.replace(/a$/,'i'); }
+function finalNeg(stem,lang){ return stem.replace(/a(?=\s|$)/,lang==='st'?'e':'i'); }   // only the verb itself, not a following word
 function joinSC(sc,stem){ if(!isVow(stem)) return sc+stem; if(sc==='u') return 'w'+stem; if(sc==='i') return 'y'+stem; return sc.replace(/[aeiou]$/,'')+stem; }
 function infB(stem,lang){ if(lang==='st') return 'ho '+stem; return (isVow(stem)?'ukw':'uku')+stem; }
 function composeB(list,lang){

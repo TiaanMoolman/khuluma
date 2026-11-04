@@ -6,7 +6,7 @@ cfg={}
 p=os.path.join(here,'config.json')
 if os.path.exists(p): cfg=json.load(open(p))
 cloud='window.KHULUMA_CONFIG='+json.dumps(cfg)+';\n'+r('cloud.js')
-page=r('shell.html').replace('//@@VOCAB@@',r('vocab.js')+'\n'+r('langs.js')).replace('//@@APP@@',r('app.js')).replace('//@@CLOUD@@',cloud)
+page=r('shell.html').replace('//@@VOCAB@@',r('vocab.js')+'\n'+r('adv.js')+'\n'+r('langs.js')).replace('//@@APP@@',r('app.js')).replace('//@@CLOUD@@',cloud)
 doc=('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
      '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
      '<meta name="theme-color" content="#1d6b57">\n</head>\n<body>\n'+page+'\n</body>\n</html>\n')

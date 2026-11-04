@@ -83,7 +83,7 @@ const GRID_IDS=GRIDS.map(g=>g[0]);
 const validGrid=g=>{ const m=/^(\d+)x(\d+)$/.exec(g||''); return !!m&&+m[1]>=1&&+m[1]<=10&&+m[2]>=1&&+m[2]<=6; };
 const DEF={mode:'ipad',dwell:1200,scan:1500,guard:700,grid:'8x6',lang:'en',lang2:'',showL2:false,labels:true,speakEach:true,hc:false,voice:'',rate:0.9,
   psize:'220',restBtn:true,skipWeak:false,partner:false,simpleBody:false,mirror:true,grammar:true,hs:'124',layout:'core',
-  cvi:false,cviGrid:'2x1',cviColour:'#ffd400',sil:false,motion:'gentle',spotMs:3500,field:'centre',lookSpeak:false,suggest:true,tileSize:100,tileStyle:'classic',wordSize:100,bubble:false,bOut:8,bGap:5,bLight:false,bHide:false,cviFont:'nunito',cviText:110};
+  cvi:false,cviGrid:'2x1',cviColour:'#ffd400',sil:false,motion:'gentle',spotMs:3500,field:'centre',lookSpeak:false,suggest:true,tileSize:100,tileStyle:'classic',vocab:'standard',wordSize:100,bubble:false,bOut:8,bGap:5,bLight:false,bHide:false,cviFont:'nunito',cviText:110};
 const CVI_FONTS={nunito:'"Nunito",system-ui,sans-serif',varela:'"Varela Round",system-ui,sans-serif',andika:'"Andika",system-ui,sans-serif',atkinson:'"Atkinson Hyperlegible",system-ui,sans-serif'};
 // Word bubbling: copies of the word stacked in rings. The gap ring (background colour) sits on top of the outline ring (highlight colour).
 function bubbleShadow(gap,out,col,bg){
@@ -251,7 +251,8 @@ function viewTitle(v){ if(v.startsWith('list:')) return listOf(v.slice(5)).n[L()
 function libraryFolders(){
   return [folderHTML('personal','💛',ui('personal'),custom.length),
     ...LIST_ORDER.filter(id=>id!=='personal').map(id=>folderHTML('list:'+id,LISTS[id].e,LISTS[id].n[L()],LISTS[id].items.length)),
-    ...TOPIC_ORDER.map(id=>folderHTML('list:'+id,TOPICS[id].e,TOPICS[id].n[L()],TOPICS[id].items.length))];
+    ...TOPIC_ORDER.map(id=>folderHTML('list:'+id,TOPICS[id].e,TOPICS[id].n[L()],TOPICS[id].items.length)),
+    ...(settings.vocab==='advanced'?ADV_ORDER.map(id=>folderHTML('list:'+id,TOPICS[id].e,TOPICS[id].n[L()],TOPICS[id].items.length)):[])];
 }
 function renderBoard(){
   grid.hidden=true; painEl.hidden=true; sceneEl.hidden=true; kbdEl.hidden=true; $('#pager').hidden=true;
@@ -681,6 +682,7 @@ function openSettings(tab){ stopScan(); stopSpot(); startDwell(null); stopAll();
 function closeSettings(){ $('#settings').hidden=true; save(); renderAll(); applyMode(); }
 $('#closeSettings').addEventListener('click',closeSettings);
 $('#lang').innerHTML=Object.entries(LANGS).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('');
+$('#vocab').innerHTML=`<option value="standard">Standard (${STANDARD_COUNT} words)</option><option value="advanced">Advanced (${ADVANCED_COUNT} words)</option>`;
 $('#gridSize').innerHTML=GRIDS.map(([v,n])=>`<option value="${v}">${n}</option>`).join('')+'<option value="custom">Choose my own…</option>';
 const fmt={dwell:v=>(v/1000).toFixed(1)+' s',scan:v=>(v/1000).toFixed(1)+' s',guard:v=>v?(v/1000).toFixed(1)+' s':'Off',rate:v=>Number(v).toFixed(2)+'×'};
 const BOOLS=['labels','speakEach','hc','showL2','restBtn','skipWeak','simpleBody','mirror','grammar','sil','lookSpeak','suggest','bubble','bLight','bHide'];
@@ -691,7 +693,7 @@ function syncSettings(){
   $('#lang').value=settings.lang;
   $('#lang2').innerHTML='<option value="">None</option>'+Object.entries(LANGS).filter(([k])=>k!==settings.lang).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('');
   $('#lang2').value=settings.lang2; $('#gridSize').value=GRID_IDS.includes(settings.grid)?settings.grid:'custom'; syncGridCustom();
-  $('#tileStyle').value=settings.tileStyle; $('#wordSize').value=settings.wordSize; $('#wordSizeOut').textContent=settings.wordSize+'%'; $('#tileSize').value=settings.tileSize; $('#tileSizeOut').textContent=settings.tileSize>=100?'Fill the space':settings.tileSize+'%'; $('#layout').value=settings.layout; $('#hs').value=settings.hs;
+  $('#vocab').value=settings.vocab; $('#tileStyle').value=settings.tileStyle; $('#wordSize').value=settings.wordSize; $('#wordSizeOut').textContent=settings.wordSize+'%'; $('#tileSize').value=settings.tileSize; $('#tileSizeOut').textContent=settings.tileSize>=100?'Fill the space':settings.tileSize+'%'; $('#layout').value=settings.layout; $('#hs').value=settings.hs;
   BOOLS.forEach(k=>$('#'+k).checked=!!settings[k]);
   $('#partnerOn').checked=settings.partner;
   $('#cvi').checked=!!settings.cvi; $('#cviGrid').value=settings.cviGrid; $('#motion').value=settings.motion; $('#field').value=settings.field;
@@ -716,6 +718,7 @@ function syncGridCustom(){ const [c,r]=settings.grid.split('x').map(Number), cu=
 $('#gridSize').addEventListener('change',e=>{ if(e.target.value!=='custom') settings.grid=e.target.value; page=0; save(); syncGridCustom(); renderCoreMap(); });
 ['gCols','gRows'].forEach(id=>$('#'+id).addEventListener('input',()=>{ settings.grid=$('#gCols').value+'x'+$('#gRows').value; page=0; save(); syncGridCustom(); renderCoreMap(); }));
 $('#wordSize').addEventListener('input',e=>{ settings.wordSize=+e.target.value; $('#wordSizeOut').textContent=settings.wordSize+'%'; save(); });
+$('#vocab').addEventListener('change',e=>{ settings.vocab=e.target.value; save(); });
 $('#tileStyle').addEventListener('change',e=>{ settings.tileStyle=e.target.value; save(); });
 $('#tileSize').addEventListener('input',e=>{ settings.tileSize=+e.target.value; $('#tileSizeOut').textContent=settings.tileSize>=100?'Fill the space':settings.tileSize+'%'; save(); });
 $('#layout').addEventListener('change',e=>{ settings.layout=e.target.value; hist=[]; page=0;
