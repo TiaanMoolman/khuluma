@@ -660,7 +660,7 @@ $('#gear2').addEventListener('click',()=>toast('Press and hold for 1.5 seconds t
 function showTab(name){ $$('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.tab===name)); $$('[data-panel]').forEach(p=>p.hidden=p.dataset.panel!==name);
   if(name==='account') cloudChanged('account-tab'); if(name==='insights') renderInsights(); if(name==='training') renderZoneMap(); if(name==='board'){ renderGramDemo(); renderCoreMap(); } if(name==='personal'){ renderSceneList(); renderRecList(); } }
 $$('.tab').forEach(t=>t.addEventListener('click',()=>showTab(t.dataset.tab)));
-function openSettings(tab){ stopScan(); stopSpot(); startDwell(null); stopAll(); syncSettings(); $('#settings').hidden=false;
+function openSettings(tab){ stopScan(); stopSpot(); startDwell(null); stopAll(); syncSettings(); $('#settings').hidden=false; cloudChanged('settings-open');
   let name=typeof tab==='string'?tab:(($$('.tab').find(t=>t.getAttribute('aria-selected')==='true')||{dataset:{tab:'access'}}).dataset.tab);
   if(role==='parent'&&($$('.tab').find(t=>t.dataset.tab===name)||{dataset:{}}).dataset.tier==='therapist') name='personal';
   showTab(name); }
