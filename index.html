@@ -139,7 +139,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
 .tile .sym{font-size:min(52cqh,56cqw);line-height:1}
 .tile .pic img{width:min(62cqh,86cqw);height:min(58cqh,86cqw);object-fit:cover;border-radius:12px}
 .tile .lbl{display:block;background:color-mix(in srgb, var(--fk) var(--band), var(--surface));border-top:4px solid var(--fk);
-  font-family:var(--f-lbl);font-weight:700;font-size:clamp(11px,min(14cqh,12.5cqw),36px);line-height:1.08;padding:3% 4% 4%;overflow-wrap:anywhere}
+  font-family:var(--f-lbl);font-weight:700;font-size:calc(clamp(11px,min(14cqh,12.5cqw),36px) * var(--word-scale,1));line-height:1.08;padding:3% 4% 4%;overflow-wrap:anywhere}
 .tile .lbl small{display:block;font-weight:400;font-size:.72em;color:var(--muted)}
 .tile .vo{position:absolute;top:5px;right:7px;font-size:min(11cqh,18px)}
 .tile .cnt{position:absolute;top:6px;right:9px;font-size:min(11cqh,15px);font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -446,13 +446,13 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
   box-shadow:0 3px 0 color-mix(in srgb,var(--fk) 25%,color-mix(in srgb,var(--ink) 22%,transparent)),0 5px 10px rgba(20,30,50,.10)}
 #app.ts-classic .tile:active{transform:translateY(2px);box-shadow:0 1px 0 color-mix(in srgb,var(--ink) 25%,transparent)}
 #app.ts-classic .tile .lbl{grid-row:1;background:transparent;border:0;color:var(--ink);font-weight:500;
-  font-size:clamp(10px,min(12cqh,10.5cqw),30px);padding:6% 6% 0;line-height:1.1}
+  font-size:calc(clamp(13px,min(16cqh,14cqw),40px) * var(--word-scale,1));font-weight:800;padding:5% 5% 0;line-height:1.05}
 #app.ts-classic .tile .pic{grid-row:2;padding:3% 8% 9%}
-#app.ts-classic .tile .sym{font-size:min(54cqh,54cqw)}
+#app.ts-classic .tile .sym{font-size:min(48cqh,52cqw)}
 #app.ts-classic .tile .pic img{border-radius:6px}
 #app.ts-classic .tile.folder{--fk:var(--accent)}
 #app.ts-classic .tile.folder .pic{background:transparent}
-#app.ts-classic .tile.folder .lbl{background:transparent;color:var(--ink);font-weight:600}
+#app.ts-classic .tile.folder .lbl{background:transparent;color:var(--ink);font-weight:800}
 #app.ts-classic .tile.folder::after{content:"";position:absolute;top:-1px;right:-1px;width:min(18cqw,18cqh);aspect-ratio:1;border-top-right-radius:9px;
   background:linear-gradient(225deg,var(--bg) 50%,color-mix(in srgb,var(--accent) 45%,var(--line)) 50%)}
 #app.ts-classic .tile.empty,#app.ts-classic .tile.note,#app.ts-classic .tile.weak{background:transparent;box-shadow:none}
@@ -461,7 +461,7 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
 #app.ts-classic .nv.hold{background:transparent;color:var(--muted);box-shadow:none}
 #app.ts-classic .yn{border-radius:10px;border:1.5px solid color-mix(in srgb,var(--fk) 32%,var(--line));border-bottom:1.5px solid color-mix(in srgb,var(--fk) 32%,var(--line));
   background:linear-gradient(color-mix(in srgb,var(--fk) 7%,var(--surface)),color-mix(in srgb,var(--fk) 15%,var(--surface)));box-shadow:0 3px 0 color-mix(in srgb,var(--ink) 22%,transparent)}
-#app.ts-classic .yn .lbl{order:-1;font-weight:500}
+#app.ts-classic .yn .lbl{order:-1;font-weight:800;font-size:clamp(1.15rem,2.6vw,2rem)}
 #app.ts-classic .tile .cnt{left:9px;right:auto}
 #app.ts-classic .pg{border-radius:10px;color:#fff;background:linear-gradient(#7d98b6,#6884a5);box-shadow:0 3px 0 #4c6686}
 </style>
@@ -573,6 +573,7 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
           <p class="note-text" id="gridTotal" style="margin:0 0 6px"></p>
         </div>
         <div class="row"><label for="tileStyle">Button style<small>Classic: the word on top and a large picture below, on raised buttons. Picture card: the picture on top and the word in a coloured band below.</small></label><select id="tileStyle"><option value="classic">Classic (word on top)</option><option value="card">Picture card (word below)</option></select><span></span></div>
+        <div class="row"><label for="wordSize">Word size<small>How big the words on the buttons are</small></label><input type="range" id="wordSize" min="70" max="150" step="10"><output id="wordSizeOut"></output></div>
         <div class="row"><label for="tileSize">Button size<small>Make the buttons smaller to leave more space between them. Space helps eye gaze and children who touch the wrong button.</small></label><input type="range" id="tileSize" min="50" max="100" step="5"><output id="tileSizeOut"></output></div>
         <div id="coreMap"></div>
       </div>
@@ -1571,7 +1572,7 @@ const GRID_IDS=GRIDS.map(g=>g[0]);
 const validGrid=g=>{ const m=/^(\d+)x(\d+)$/.exec(g||''); return !!m&&+m[1]>=1&&+m[1]<=10&&+m[2]>=1&&+m[2]<=6; };
 const DEF={mode:'ipad',dwell:1200,scan:1500,guard:700,grid:'8x6',lang:'en',lang2:'',showL2:false,labels:true,speakEach:true,hc:false,voice:'',rate:0.9,
   psize:'220',restBtn:true,skipWeak:false,partner:false,simpleBody:false,mirror:true,grammar:true,hs:'124',layout:'core',
-  cvi:false,cviGrid:'2x1',cviColour:'#ffd400',sil:false,motion:'gentle',spotMs:3500,field:'centre',lookSpeak:false,suggest:true,tileSize:100,tileStyle:'classic',bubble:false,bOut:8,bGap:5,bLight:false,bHide:false,cviFont:'nunito',cviText:110};
+  cvi:false,cviGrid:'2x1',cviColour:'#ffd400',sil:false,motion:'gentle',spotMs:3500,field:'centre',lookSpeak:false,suggest:true,tileSize:100,tileStyle:'classic',wordSize:100,bubble:false,bOut:8,bGap:5,bLight:false,bHide:false,cviFont:'nunito',cviText:110};
 const CVI_FONTS={nunito:'"Nunito",system-ui,sans-serif',varela:'"Varela Round",system-ui,sans-serif',andika:'"Andika",system-ui,sans-serif',atkinson:'"Atkinson Hyperlegible",system-ui,sans-serif'};
 // Word bubbling: copies of the word stacked in rings. The gap ring (background colour) sits on top of the outline ring (highlight colour).
 function bubbleShadow(gap,out,col,bg){
@@ -1834,7 +1835,7 @@ function renderUI(){
   $('#langBtn').hidden=!settings.lang2;
   if(settings.lang2) $('#langCodes').textContent=`${LANGS[settings.lang].code} ⇄ ${LANGS[settings.lang2].code}`;
   app.classList.toggle('gaze',gaze());
-  app.classList.toggle('cvi',!!settings.cvi); app.classList.toggle('ts-classic',settings.tileStyle==='classic'&&!settings.cvi); document.body.classList.toggle('cvi-on',!!settings.cvi);
+  app.classList.toggle('cvi',!!settings.cvi); app.classList.toggle('ts-classic',settings.tileStyle==='classic'&&!settings.cvi); app.style.setProperty('--word-scale',(settings.wordSize||100)/100); document.body.classList.toggle('cvi-on',!!settings.cvi);
   app.classList.toggle('sil',!!settings.sil); ['gentle','spotlight'].forEach(m=>app.classList.toggle('motion-'+m,settings.cvi&&settings.motion===m));
   ['left','right','lower','centre'].forEach(f=>app.classList.toggle('field-'+f,settings.cvi&&settings.field===f));
   app.style.setProperty('--cvi',settings.cviColour); applyCviText(app); app.classList.toggle('nolabels',!settings.labels); app.classList.toggle('hc',settings.hc); app.classList.toggle('editing',editing);
@@ -2179,7 +2180,7 @@ function syncSettings(){
   $('#lang').value=settings.lang;
   $('#lang2').innerHTML='<option value="">None</option>'+Object.entries(LANGS).filter(([k])=>k!==settings.lang).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('');
   $('#lang2').value=settings.lang2; $('#gridSize').value=GRID_IDS.includes(settings.grid)?settings.grid:'custom'; syncGridCustom();
-  $('#tileStyle').value=settings.tileStyle; $('#tileSize').value=settings.tileSize; $('#tileSizeOut').textContent=settings.tileSize>=100?'Fill the space':settings.tileSize+'%'; $('#layout').value=settings.layout; $('#hs').value=settings.hs;
+  $('#tileStyle').value=settings.tileStyle; $('#wordSize').value=settings.wordSize; $('#wordSizeOut').textContent=settings.wordSize+'%'; $('#tileSize').value=settings.tileSize; $('#tileSizeOut').textContent=settings.tileSize>=100?'Fill the space':settings.tileSize+'%'; $('#layout').value=settings.layout; $('#hs').value=settings.hs;
   BOOLS.forEach(k=>$('#'+k).checked=!!settings[k]);
   $('#partnerOn').checked=settings.partner;
   $('#cvi').checked=!!settings.cvi; $('#cviGrid').value=settings.cviGrid; $('#motion').value=settings.motion; $('#field').value=settings.field;
@@ -2203,6 +2204,7 @@ function syncGridCustom(){ const [c,r]=settings.grid.split('x').map(Number), cu=
   $('#gridTotal').textContent=c*r+' buttons per page'; }
 $('#gridSize').addEventListener('change',e=>{ if(e.target.value!=='custom') settings.grid=e.target.value; page=0; save(); syncGridCustom(); renderCoreMap(); });
 ['gCols','gRows'].forEach(id=>$('#'+id).addEventListener('input',()=>{ settings.grid=$('#gCols').value+'x'+$('#gRows').value; page=0; save(); syncGridCustom(); renderCoreMap(); }));
+$('#wordSize').addEventListener('input',e=>{ settings.wordSize=+e.target.value; $('#wordSizeOut').textContent=settings.wordSize+'%'; save(); });
 $('#tileStyle').addEventListener('change',e=>{ settings.tileStyle=e.target.value; save(); });
 $('#tileSize').addEventListener('input',e=>{ settings.tileSize=+e.target.value; $('#tileSizeOut').textContent=settings.tileSize>=100?'Fill the space':settings.tileSize+'%'; save(); });
 $('#layout').addEventListener('change',e=>{ settings.layout=e.target.value; hist=[]; page=0;
