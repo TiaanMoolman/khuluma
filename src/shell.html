@@ -473,6 +473,31 @@ html.locked #nav .nv:not([data-id="pain"]):not(.hold):not([data-id="core"]):not(
 .admwrap{overflow-x:auto}
 html.has-plan #app{height:calc(100% - 54px)}
 html.has-plan #planBar{bottom:max(6px,env(safe-area-inset-bottom,0px))}
+
+/* matching games */
+.mgame{position:absolute;inset:12px;display:grid;grid-template-rows:minmax(0,1fr) minmax(0,1.25fr);gap:18px}
+.mprompt{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:0}
+.mprompt .mask{font:700 clamp(1rem,2.4vw,1.5rem) Lexend,system-ui,sans-serif;color:var(--muted)}
+.mprompt .prompt{height:100%;max-height:100%;aspect-ratio:1;min-height:0;pointer-events:none;flex:1 1 auto}
+.mword{font:800 clamp(2.4rem,9vw,6rem)/1.1 var(--cvi-font,var(--f-lbl));color:var(--ink);text-align:center;padding:.2em .5em}
+.mopts{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:18px;min-height:0}
+.mopts .tile{min-height:0}
+.mopts .tile.wrong{opacity:.15;pointer-events:none;transform:scale(.92);transition:.3s}
+.mopts .tile.chosen{box-shadow:0 0 0 8px var(--s0, #2e9d5b);transform:scale(1.04);transition:.25s}
+.mopts .tile.nolbl .lbl{display:none}
+.mopts .tile.nolbl{grid-template-rows:1fr}
+.mopts .tile.wordonly .pic{display:none}
+.mopts .tile.wordonly{grid-template-rows:1fr;align-items:center}
+.mopts .tile.wordonly .lbl{font-size:calc(clamp(1.4rem,4.6vw,3.4rem) * var(--cvi-scale,1));font-weight:800;padding:8%;align-self:center;background:transparent;border:0}
+#practice.cvi .mword{color:#fff}
+#practice.cvi.bubble .mword,#practice.cvi.bubble .mopts .tile.wordonly .lbl{text-shadow:var(--bubble);padding:calc(var(--bpad,10px) + .1em) calc(var(--bpad,10px) + .3em)}
+#practice.cvi.bubble.bubble-light .mword{color:#000}
+#practice.cvi .mopts .tile.chosen{box-shadow:0 0 0 10px var(--cvi)}
+#practice.cvi.field-left .mgame{right:38%}
+#practice.cvi.field-right .mgame{left:38%}
+#practice.cvi.field-lower .mgame{top:30%}
+#practice.cvi.field-centre .mgame{inset:6% 14%}
+@media (max-width:700px){ #practice .bar2 select{max-width:42vw} .ptabs{overflow-x:auto;max-width:100%} }
 </style>
 
 <div id="planBar" hidden role="status"></div>
@@ -654,6 +679,15 @@ html.has-plan #planBar{bottom:max(6px,env(safe-area-inset-bottom,0px))}
         </div>
       </div>
       <div class="card">
+        <h2>Matching games</h2>
+        <p class="note-text" style="margin:0 0 10px">Choose 2, 3 or 4 answers and a topic inside the game. A wrong answer fades away, so every round ends in success. In CVI mode the games use the child’s CVI colours, silhouettes, word bubbling and visual field.</p>
+        <div class="modes">
+          <button class="mode" data-practice="match"><b>4 · Match pictures</b><span>Find the picture that is the same as the one at the top.</span></button>
+          <button class="mode" data-practice="picword"><b>5 · Picture to word</b><span>Look at the picture and choose its written word. Early reading.</span></button>
+          <button class="mode" data-practice="wordpic"><b>6 · Word to picture</b><span>The iPad says and shows a word; choose its picture. Understanding words.</span></button>
+        </div>
+      </div>
+      <div class="card">
         <h2>Gaze map</h2>
         <div id="zoneMap"></div>
         <p class="note-text">Average time to select a target in each part of the screen. Red areas are hard to reach.</p>
@@ -742,10 +776,12 @@ html.has-plan #planBar{bottom:max(6px,env(safe-area-inset-bottom,0px))}
 <section id="practice" class="overlay" hidden aria-label="Gaze training">
   <div class="bar2">
     <div class="ptabs" role="tablist">
-      <button class="ptab" data-stage="explore">Explore</button><button class="ptab" data-stage="target">Target</button><button class="ptab" data-stage="choose">Choose</button>
+      <button class="ptab" data-stage="explore">Explore</button><button class="ptab" data-stage="target">Target</button><button class="ptab" data-stage="choose">Choose</button><button class="ptab" data-stage="match">Match</button><button class="ptab" data-stage="picword">Picture → word</button><button class="ptab" data-stage="wordpic">Word → picture</button>
     </div>
     <span id="pStats"></span>
     <span style="display:flex;gap:8px;align-items:center">
+      <select id="gTopic" aria-label="Topic" style="width:auto"><option value="mix">Mixed</option><option value="animals">Animals</option><option value="food">Food &amp; drinks</option><option value="toys">Toys</option><option value="transport">Transport</option><option value="clothes">Clothes</option><option value="body">My body</option><option value="places">Places</option></select>
+      <select id="gChoices" aria-label="Number of answers" style="width:auto"><option value="2">2 answers</option><option value="3">3 answers</option><option value="4">4 answers</option></select>
       <select id="pSize" aria-label="Target size" style="width:auto"><option value="220">Large</option><option value="150">Medium</option><option value="100">Small</option></select>
       <button class="holdbtn" id="pExit">Hold to exit</button>
     </span>

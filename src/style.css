@@ -455,3 +455,28 @@ html.locked #nav .nv:not([data-id="pain"]):not(.hold):not([data-id="core"]):not(
 .admwrap{overflow-x:auto}
 html.has-plan #app{height:calc(100% - 54px)}
 html.has-plan #planBar{bottom:max(6px,env(safe-area-inset-bottom,0px))}
+
+/* matching games */
+.mgame{position:absolute;inset:12px;display:grid;grid-template-rows:minmax(0,1fr) minmax(0,1.25fr);gap:18px}
+.mprompt{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:0}
+.mprompt .mask{font:700 clamp(1rem,2.4vw,1.5rem) Lexend,system-ui,sans-serif;color:var(--muted)}
+.mprompt .prompt{height:100%;max-height:100%;aspect-ratio:1;min-height:0;pointer-events:none;flex:1 1 auto}
+.mword{font:800 clamp(2.4rem,9vw,6rem)/1.1 var(--cvi-font,var(--f-lbl));color:var(--ink);text-align:center;padding:.2em .5em}
+.mopts{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:18px;min-height:0}
+.mopts .tile{min-height:0}
+.mopts .tile.wrong{opacity:.15;pointer-events:none;transform:scale(.92);transition:.3s}
+.mopts .tile.chosen{box-shadow:0 0 0 8px var(--s0, #2e9d5b);transform:scale(1.04);transition:.25s}
+.mopts .tile.nolbl .lbl{display:none}
+.mopts .tile.nolbl{grid-template-rows:1fr}
+.mopts .tile.wordonly .pic{display:none}
+.mopts .tile.wordonly{grid-template-rows:1fr;align-items:center}
+.mopts .tile.wordonly .lbl{font-size:calc(clamp(1.4rem,4.6vw,3.4rem) * var(--cvi-scale,1));font-weight:800;padding:8%;align-self:center;background:transparent;border:0}
+#practice.cvi .mword{color:#fff}
+#practice.cvi.bubble .mword,#practice.cvi.bubble .mopts .tile.wordonly .lbl{text-shadow:var(--bubble);padding:calc(var(--bpad,10px) + .1em) calc(var(--bpad,10px) + .3em)}
+#practice.cvi.bubble.bubble-light .mword{color:#000}
+#practice.cvi .mopts .tile.chosen{box-shadow:0 0 0 10px var(--cvi)}
+#practice.cvi.field-left .mgame{right:38%}
+#practice.cvi.field-right .mgame{left:38%}
+#practice.cvi.field-lower .mgame{top:30%}
+#practice.cvi.field-centre .mgame{inset:6% 14%}
+@media (max-width:700px){ #practice .bar2 select{max-width:42vw} .ptabs{overflow-x:auto;max-width:100%} }

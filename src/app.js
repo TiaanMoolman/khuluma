@@ -83,7 +83,7 @@ const GRID_IDS=GRIDS.map(g=>g[0]);
 const validGrid=g=>{ const m=/^(\d+)x(\d+)$/.exec(g||''); return !!m&&+m[1]>=1&&+m[1]<=10&&+m[2]>=1&&+m[2]<=6; };
 const DEF={mode:'ipad',dwell:1200,scan:1500,guard:700,grid:'8x6',lang:'en',lang2:'',showL2:false,labels:true,speakEach:true,hc:false,voice:'',rate:0.9,
   psize:'220',restBtn:true,skipWeak:false,partner:false,simpleBody:false,mirror:true,grammar:true,hs:'124',layout:'core',
-  cvi:false,cviGrid:'2x1',cviColour:'#ffd400',sil:false,motion:'gentle',spotMs:3500,field:'centre',lookSpeak:false,suggest:true,tileSize:100,tileStyle:'classic',vocab:'standard',wordSize:100,bubble:false,bOut:8,bGap:5,bLight:false,bHide:false,cviFont:'nunito',cviText:110};
+  cvi:false,cviGrid:'2x1',cviColour:'#ffd400',sil:false,motion:'gentle',spotMs:3500,field:'centre',lookSpeak:false,suggest:true,tileSize:100,tileStyle:'classic',vocab:'standard',wordSize:100,bubble:false,bOut:8,bGap:5,bLight:false,bHide:false,cviFont:'nunito',cviText:110,gChoices:3,gTopic:'mix'};
 const CVI_FONTS={nunito:'"Nunito",system-ui,sans-serif',varela:'"Varela Round",system-ui,sans-serif',andika:'"Andika",system-ui,sans-serif',atkinson:'"Atkinson Hyperlegible",system-ui,sans-serif'};
 // Word bubbling: copies of the word stacked in rings. The gap ring (background colour) sits on top of the outline ring (highlight colour).
 function bubbleShadow(gap,out,col,bg){
@@ -509,7 +509,7 @@ function logSel(key){ log.selections++; log.sel[key]=(log.sel[key]||0)+1; const 
 
 // ---------- activation ----------
 let last={key:'',t:0};
-const PRACTICE_ACTS=new Set(['target','explore','choose']);
+const PRACTICE_ACTS=new Set(['target','explore','choose','match']);
 function flash(el){ el.classList.remove('fired'); void el.offsetWidth; el.classList.add('fired'); }
 function activate(el){
   if(!el||!el.isConnected) return;
@@ -541,6 +541,7 @@ function activate(el){
     case 'target': hitTarget(); return;
     case 'explore': exploreHit(el); return;
     case 'choose': chooseHit(el); return;
+    case 'match': matchHit(el); return;
   }
   if(settings.mode==='scan') setTimeout(startScan,30);
 }
@@ -991,14 +992,55 @@ $('#restoreFile').addEventListener('change',async e=>{ const f=e.target.files[0]
 
 // ---------- gaze training ----------
 let stage='explore', zoneQueue=[], curZone=0, shownAt=0, hits=0;
-function openPractice(s){ $('#settings').hidden=true; stopScan(); startDwell(null); document.body.className='mode-'+settings.mode; $('#practice').hidden=false; $('#pSize').value=settings.psize; setStage(s||'explore'); }
+function openPractice(s){ $('#settings').hidden=true; stopScan(); startDwell(null); document.body.className='mode-'+settings.mode;
+  // games follow the child's CVI look: black field, highlight colour, silhouettes, word bubbling, visual field
+  const p=$('#practice'); p.classList.toggle('cvi',!!settings.cvi); p.classList.toggle('sil',!!(settings.cvi&&settings.sil));
+  ['left','right','lower','centre'].forEach(f=>p.classList.toggle('field-'+f,!!settings.cvi&&settings.field===f));
+  p.style.setProperty('--cvi',settings.cviColour); applyCviText(p); p.classList.toggle('bubble',!!(settings.cvi&&settings.bubble));
+  p.hidden=false; $('#pSize').value=settings.psize; $('#gChoices').value=String(settings.gChoices); $('#gTopic').value=settings.gTopic; setStage(s||'explore'); }
 function closePractice(){ $('#practice').hidden=true; $('#stage').innerHTML=''; startDwell(null); openSettings('training'); }
 hold($('#pExit'),1200,closePractice);
 $$('[data-practice]').forEach(b=>b.addEventListener('click',()=>openPractice(b.dataset.practice)));
 $$('.ptab').forEach(b=>b.addEventListener('click',()=>setStage(b.dataset.stage)));
 $('#pSize').addEventListener('change',e=>{ settings.psize=e.target.value; save(); if(stage==='target') placeTarget(); });
+$('#gChoices').addEventListener('change',e=>{ settings.gChoices=+e.target.value; save(); newMatch(); });
+$('#gTopic').addEventListener('change',e=>{ settings.gTopic=e.target.value; save(); newMatch(); });
+const GAME_TOPICS={mix:['animals','food','toys','transport','clothes'],animals:['animals'],food:['food','drinks'],toys:['toys'],transport:['transport'],clothes:['clothes'],body:['bodyparts'],places:['places']};
+const GPROMPT={match:['Find the same','Soek dieselfde','Thola efanayo','Fumana efanayo','Fumana e tshwanang'],
+  picword:['Which word is it?','Watter woord is dit?','Yiliphi igama?','Leliphi igama?','Ke lentswe lefe?'],
+  wordpic:['Find','Soek','Thola','Fumana','Fumana'],again:['Try again','Probeer weer','Zama futhi','Zama kwakhona','Leka hape']};
+const MATCH_GAMES=['match','picword','wordpic'];
+let mAns=null, mTries=0, mFirst=0, mRounds=0, mLast='';
+function gamePool(){ return [...new Set((GAME_TOPICS[settings.gTopic]||GAME_TOPICS.mix).flatMap(id=>(TOPICS[id]||LISTS[id]||{items:[]}).items))]
+  .map(k=>getItem(k)).filter(it=>it&&!it.hidden&&word(it)&&!/\s/.test(word(it).trim().replace(/^(i|ama|ii|di|izi|ama)-/i,''))); }
+function newMatch(){
+  const pool=gamePool(); if(pool.length<2){ $('#stage').innerHTML='<div class="empty-state">Not enough words in this topic.</div>'; return; }
+  const n=Math.max(2,Math.min(+settings.gChoices||3,pool.length,settings.cvi?3:4));
+  let ans; do{ ans=pool[Math.floor(Math.random()*pool.length)]; }while(ans.key===mLast&&pool.length>2); mLast=ans.key;
+  const opts=[ans]; while(opts.length<n){ const c=pool[Math.floor(Math.random()*pool.length)]; if(!opts.some(o=>o.key===c.key||word(o)===word(c)||o.e===c.e)) opts.push(c); }
+  opts.sort(()=>Math.random()-.5); mAns=ans; mTries=0;
+  const li=L(), prompt=stage==='wordpic'?`<div class="mword">${esc(word(ans))}</div>`:
+    `<div class="tile prompt fk-${ans.c}"><span class="pic">${picHTML(ans)}</span>${stage==='match'?`<span class="lbl">${esc(word(ans))}</span>`:''}</div>`;
+  const cls=stage==='picword'?'wordonly':'nolbl';
+  $('#stage').innerHTML=`<div class="mgame ${stage}"><div class="mprompt"><span class="mask">${esc(GPROMPT[stage][li]||GPROMPT[stage][0])}</span>${prompt}</div>
+    <div class="mopts" style="--n:${n}">${opts.map(it=>tileHTML(it,cls,'match')).join('')}</div></div>`;
+  if(stage==='wordpic') setTimeout(()=>{ if(practiceOpen()) sayItems([ans]); },350);
+}
+function matchHit(el){
+  if(!mAns) return; const it=getItem(el.dataset.id); mTries++;
+  if(el.dataset.id===mAns.key){
+    if(mTries===1) mFirst++; mRounds++; el.classList.add('chosen'); tone([523,659,784],.18); sayItems([mAns]);
+    $('#pStats').textContent=`${mFirst} of ${mRounds} right first time`;
+    const g=log.games=log.games||{}; const s=g[stage]=g[stage]||{r:0,f:0}; s.r++; if(mTries===1) s.f++; saveLog();
+    mAns=null; setTimeout(()=>{ if(MATCH_GAMES.includes(stage)&&practiceOpen()) newMatch(); },1900);
+  } else {                      // gentle: the wrong card fades away, so the child always finishes with success
+    el.classList.add('wrong'); tone([220],.15,.08); const li=L(); sayText(GPROMPT.again[li]||GPROMPT.again[0]);
+  }
+}
 function setStage(s){
-  stage=s; hits=0; $$('.ptab').forEach(b=>b.setAttribute('aria-selected',b.dataset.stage===s)); $('#pSize').hidden=s!=='target';
+  stage=s; hits=0; mFirst=0; mRounds=0; $$('.ptab').forEach(b=>b.setAttribute('aria-selected',b.dataset.stage===s)); $('#pSize').hidden=s!=='target';
+  $('#gChoices').hidden=$('#gTopic').hidden=!MATCH_GAMES.includes(s);
+  if(MATCH_GAMES.includes(s)){ $('#pStats').textContent=GPROMPT[s][L()]||GPROMPT[s][0]; newMatch(); return; }
   const st=$('#stage');
   if(s==='explore'){
     const sets=[['🐘','fk-v'],['🦁','fk-n'],['🚀','fk-q'],['🌻','fk-p']];
