@@ -52,3 +52,12 @@ Then run `python3 src/build.py`, commit the change and push. Vercel redeploys au
 - Data is hosted outside South Africa (the EU). Tell families this in your practice's privacy notice.
 - When a family leaves therapy, the lead therapist can remove the parent from the team, or delete the child in Supabase › Table editor › children. Deleting a child removes the board and the team. Remove the photos and recordings under Storage › media › (child id).
 - For many sign-ups, set up your own email sender under Authentication › SMTP Settings. The built-in sender only allows a few emails per hour.
+
+## Limiting each login to 2 devices
+Run `supabase/devices.sql` in the SQL Editor, after `schema.sql`. Each login then works on at most 2 devices at a time.
+- On a third device, Khuluma asks the person to sign out one of the other devices first.
+- Until then, that device can't see any child data. The database blocks it, not just the app.
+- Swapping devices is limited to 3 times per 30 days.
+- Everyone sees their devices under **Account › Your devices**.
+- To change the numbers, go to **Table editor › app_limits** (`max_devices`, `max_device_swaps_30d`).
+- If someone is stuck, delete their rows in **Table editor › devices**.

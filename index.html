@@ -3625,7 +3625,8 @@ async function start(){
   sb=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'khuluma.auth'}});
   sb.auth.onAuthStateChange((ev,s)=>{ session=s;
     if(ev==='PASSWORD_RECOVERY') showAuth('recover');
-    if(ev==='SIGNED_OUT'){ profile=null; kids=[]; A.setRole(''); renderAccount(); } });
+    if(ev==='SIGNED_OUT'){ const was=!!profile; profile=null; kids=[]; A.setRole(''); renderAccount();
+      if(was&&$('#auth').hidden){ toast('This device was signed out. Sign in again to keep syncing.'); showAuth('welcome'); } } });
   const {data}=await sb.auth.getSession(); session=data.session; ready=true;
   window.addEventListener('online',()=>{ online=true; push().then(()=>pull()); });
   window.addEventListener('offline',()=>{ online=false; setSync('Offline: changes are kept and sync later'); });
@@ -3634,10 +3635,26 @@ async function start(){
   await afterSignIn();
 }
 
+// ---------- device limit: one login works on at most 2 devices (rules in supabase/devices.sql) ----------
+function deviceKey(){ let k=LS.get('khuluma.cloud.dk',''); if(!k){ k=(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2)); LS.set('khuluma.cloud.dk',k); } return k; }
+function deviceName(){ const u=navigator.userAgent||''; const ipad=/iPad/.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1);
+  const kind=ipad?'iPad':/iPhone/.test(u)?'iPhone':/Android/.test(u)?(/Mobile/.test(u)?'Android phone':'Android tablet'):/Macintosh/.test(u)?'Mac':/Windows/.test(u)?'Windows computer':/CrOS/.test(u)?'Chromebook':'Computer';
+  const br=/Edg\//.test(u)?'Edge':/Chrome\//.test(u)&&!/Edg/.test(u)?'Chrome':/Firefox\//.test(u)?'Firefox':/Safari\//.test(u)?'Safari':'browser';
+  return kind+' · '+br; }
+async function registerDevice(){
+  if(!sb||!session) return true;
+  const r=await sb.rpc('register_device',{k:deviceKey(),n:deviceName()});
+  if(r.error) return true;                         // offline, or device limits not switched on yet: never lock a child out
+  if(r.data&&r.data.ok===false){ showAuth('devices',r.data); return false; }
+  return true; }
+async function myDevices(){ const r=await sb.rpc('my_devices'); return r.error?null:r.data; }
+const ago=d=>{ const m=Math.round((Date.now()-new Date(d))/60000); return m<2?'just now':m<60?m+' min ago':m<1440?Math.round(m/60)+' h ago':Math.round(m/1440)+' days ago'; };
+
 async function afterSignIn(){
   const inv=LS.get('khuluma.cloud.invite','');
   if(inv){ showAuth('invite'); return; }
   if(!session){ A.setRole(''); if(!localOnly&&!childId) showAuth('welcome'); renderAccount(); return; }
+  if(!(await registerDevice())) return;
   await loadMe();
   if(childId&&!kid()){ if(kids.length||online){ toast('This device no longer has access to that child’s board.'); setChild(''); } }
   if(!childId){
@@ -3781,6 +3798,18 @@ async function renderAuth(screen,o){
       <div class="slist">${kids.map(k=>`<div class="kid"><span class="who"><b>${esc(k.name)}</b><span class="note-text" style="margin:0">${roleName(k.role)}</span></span><button class="btn primary" data-open="${k.id}">Open</button></div>`).join('')}</div></div>`;
     body.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openChild(b.dataset.open));
   }
+  if(screen==='devices'){
+    const d=o||{devices:[]}, max=d.max||2;
+    body.innerHTML=`${brand}<div class="card"><h1 style="font-size:1.4rem;margin:0 0 6px">This login is already used on ${max} devices</h1>
+      <p class="note-text" style="margin:0">Each Khuluma login works on up to ${max} devices. To use it here, sign out one of the other devices. You can swap devices ${d.swaps_left??0} more time${d.swaps_left===1?'':'s'} in the next 30 days.</p>
+      <div class="slist">${(d.devices||[]).map(x=>`<div class="kid"><span class="who"><b>${esc(x.name)}</b><span class="note-text" style="margin:0">Last used ${ago(x.last_seen)}</span></span><button class="btn" data-rmdev="${x.id}" ${d.swaps_left?'':'disabled'}>Sign it out</button></div>`).join('')}</div>
+      ${err}<div class="btns" style="margin-top:12px"><button class="linkbtn" id="aHereOut">Sign out here instead</button></div>
+      <p class="note-text">Each family gets its own parent login from the child’s therapist, so a login does not need to be shared.</p></div>`;
+    body.querySelectorAll('[data-rmdev]').forEach(b=>b.onclick=async()=>{ if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to sign it out'; return; }
+      busy(b,true); const r=await sb.rpc('remove_device',{d:b.dataset.rmdev}); busy(b,false); if(r.error) return setErr(r.error);
+      toast('That device was signed out'); await afterSignIn(); });
+    $('#aHereOut').onclick=async()=>{ await sb.auth.signOut(); session=null; renderAuth('welcome'); };
+  }
   if(screen==='invite'){
     const tok=LS.get('khuluma.cloud.invite','');
     body.innerHTML=`${brand}<div class="card"><p class="note-text">Opening your invite…</p></div>`;
@@ -3793,7 +3822,8 @@ async function renderAuth(screen,o){
     const head=`<h1 style="font-size:1.4rem;margin:0 0 6px">${esc(iv.from)} invited you to ${esc(iv.child)}’s Khuluma board</h1>
       <p class="note-text" style="margin:0">You are joining as ${parent?'a parent':'a therapist on the team'}. ${parent?'Sign in on '+esc(iv.child)+'’s iPad: you only need to do this once. Your therapist’s setup replaces the board on this device.':''}</p>`;
     const accept=async btn=>{ if(parent&&!$('#aConsent').checked) return setErr('Please tick the consent box first.');
-      busy(btn,true); const a=await sb.rpc('accept_invite',{t:tok,consent:parent}); busy(btn,false); if(a.error) return setErr(a.error);
+      busy(btn,true); if(!(await registerDevice())){ busy(btn,false); return; }
+      const a=await sb.rpc('accept_invite',{t:tok,consent:parent}); busy(btn,false); if(a.error) return setErr(a.error);
       LS.del('khuluma.cloud.invite'); LS.del('khuluma.cloud.local'); localOnly=false; await loadMe(); if(parent) LS.set('khuluma.cloud.childDevice',true);
       await openChild(a.data,{replace:true}); toast('Welcome. This is now '+iv.child+'’s board.'); };
     if(session){
@@ -3850,6 +3880,7 @@ async function renderAccount(){
   } else if(kids.length>1){
     h+=`<div class="card"><h2>Your children</h2><div class="slist" style="margin-top:0">${kids.map(c=>`<div class="kid ${c.id===childId?'on':''}"><span class="who"><b>${esc(c.name)}</b></span>${c.id===childId?'':`<button class="btn" data-open="${c.id}">Open on this device</button>`}</div>`).join('')}</div></div>`;
   }
+  h+=`<div class="card"><h2>Your devices</h2><div id="devBox"><p class="note-text">Loading…</p></div></div>`;
   if(k&&!ther) h+=`<div class="card"><h2>${esc(k.name)}’s team</h2><div id="teamBox"></div><p class="note-text">The therapist sets up the board. You can add personal words, photos and recordings in Photos, voices &amp; scenes.</p></div>`;
   el.innerHTML=h;
   $('#acName').onclick=()=>{ $('#acNameBox').hidden=!$('#acNameBox').hidden; };
@@ -3879,8 +3910,17 @@ async function renderAccount(){
     await loadMe(); const copy=$('#acCopy').checked; if(!copy) await A.setData({settings:{}});
     await openChild(r.data.id,{copyLocal:copy}); openTeam=r.data.id; renderAccount(); toast(n+' added. Invite the parents next.'); };
   if(ther&&openTeam) renderTeam(openTeam); else if(k&&!ther) renderTeam(k.id);
+  renderDevices();
 }
 
+async function renderDevices(){
+  const box=$('#devBox'); if(!box) return; const d=await myDevices();
+  if(!d){ box.innerHTML='<p class="note-text" style="margin:0">Device limits are not switched on yet.</p>'; return; }
+  box.innerHTML=`<p class="note-text" style="margin:0 0 8px">This login is signed in on ${d.devices.length} of ${d.max} devices. Swaps left this month: ${d.swaps_left}.</p>
+    <div class="slist" style="margin-top:0">${d.devices.map(x=>`<div class="kid ${x.this?'on':''}"><span class="who"><b>${esc(x.name)}${x.this?' (this device)':''}</b><span class="note-text" style="margin:0">Last used ${ago(x.last_seen)}</span></span>${x.this?'':`<button class="btn" data-rmdev="${x.id}" ${d.swaps_left?'':'disabled'}>Sign it out</button>`}</div>`).join('')}</div>`;
+  box.querySelectorAll('[data-rmdev]').forEach(b=>b.onclick=async()=>{ if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to sign it out'; return; }
+    const r=await sb.rpc('remove_device',{d:b.dataset.rmdev}); if(r.error) toast(friendly(r.error)); else toast('That device was signed out'); renderDevices(); });
+}
 async function renderTeam(cid){
   const box=$('#teamBox'); if(!box) return; box.innerHTML='<p class="note-text">Loading…</p>';
   const c=kid(cid), lead=c&&c.role==='lead', ther=c&&['lead','therapist'].includes(c.role), me=session.user.id;
@@ -3917,7 +3957,9 @@ function inviteBox(iv){
 }
 
 async function signOut(wipe){
-  await push(); await sb.auth.signOut(); session=null; profile=null;
+  await push();
+  try{ const d=await myDevices(); const me=d&&d.devices.find(x=>x.this); if(me) await sb.rpc('remove_device',{d:me.id}); }catch(e){}
+  profile=null; await sb.auth.signOut(); session=null;
   const was=childId; setChild(''); kids=[]; LS.del('khuluma.cloud.kids'); LS.del('khuluma.cloud.childDevice'); A.setRole('');
   if(wipe){ if(was) LS.del('khuluma.cloud.s.'+was); await A.setData({settings:{}}); }
   $('#settings').hidden=true; showAuth('welcome');
