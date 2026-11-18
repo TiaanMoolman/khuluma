@@ -68,11 +68,11 @@ Run `supabase/billing.sql` in the SQL Editor, after `devices.sql`.
 **Plans** (change prices in **Table editor › plans**, in cents):
 - Monthly: R149.
 - Yearly: R1,490 (2 months free).
-- Lifetime: R4,470, a once-off fee equal to 3 years on the yearly plan.
+- Lifetime: R3,999 once-off.
 
 **Licences:**
 - Each child needs their own licence, which the family pays for.
-- Families get a 14-day free trial, once per parent account.
+- Families choose their plan when they sign up and get a 7-day free trial (once per parent account). The chosen plan starts after the trial; they can change it during the trial. Automatic charging at the end of the trial needs card payments (PayFast or Paystack) to be connected.
 - After the subscription ends there are 7 days' grace. After that only the emergency words stay open (yes, no, help, stop, toilet, hungry, thirsty, tired, it hurts, I feel sick, Mom, more) and "Where it hurts" until the plan is renewed. A child is never left without a voice.
 
 **Parents** can sign up on their own ("I'm a parent: start a free trial") and add their child. Without a therapist, the parent sets up the whole board and can invite a therapist later. The first therapist who joins becomes the lead.

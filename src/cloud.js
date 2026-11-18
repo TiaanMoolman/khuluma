@@ -129,7 +129,7 @@ function applyAccess(){
     tick(); sessT=setInterval(tick,30000); return; }
   const l=k.licence||{state:'none'};
   if(l.state==='trial'){ A.setLock(false); const d=daysTo(l.ends);
-    A.setBanner(`Free trial: ${d} day${d===1?'':'s'} left <button id="pbSub">Choose a plan</button>`); $('#pbSub').onclick=()=>showAuth('subscribe'); return; }
+    A.setBanner(`Free trial: ${d} day${d===1?'':'s'} left, then ${esc(pName(l.plan||'family_month'))} <button id="pbSub">Change plan</button>`); $('#pbSub').onclick=()=>showAuth('subscribe'); return; }
   if(l.state==='active'||l.state==='lifetime'){ A.setLock(false); return; }
   if(l.state==='grace'){ A.setLock(false);
     A.setBanner(`${esc(k.name)}’s subscription has ended <button id="pbSub">Renew</button>`); $('#planBar').classList.add('warn'); $('#pbSub').onclick=()=>showAuth('subscribe'); return; }
@@ -200,8 +200,15 @@ async function pull(force){
 }
 
 // ---------- sign-in screens ----------
-function planLine(){ const ps=(acct&&acct.plans)||[{name:'Monthly',price_cents:14900,period:'month'},{name:'Yearly',price_cents:149000,period:'year'},{name:'Lifetime',price_cents:447000,period:'lifetime'}];
+function planLine(){ const ps=(acct&&acct.plans)||[{name:'Monthly',price_cents:14900,period:'month'},{name:'Yearly',price_cents:149000,period:'year'},{name:'Lifetime',price_cents:399900,period:'lifetime'}];
   return ps.map(p=>R$(p.price_cents)+(p.period==='month'?' a month':p.period==='year'?' a year':' once-off for life')).join(', or '); }
+const DEF_PLANS=[{id:'family_month',name:'Monthly',price_cents:14900,period:'month'},{id:'family_year',name:'Yearly (2 months free)',price_cents:149000,period:'year'},{id:'family_life',name:'Lifetime (once-off)',price_cents:399900,period:'lifetime'}];
+const plansNow=()=>(acct&&acct.plans&&acct.plans.length?acct.plans:DEF_PLANS);
+const perTxt=p=>p.period==='month'?'per month':p.period==='year'?'per year':'once-off';
+const pName=id=>{ const p=plansNow().find(x=>x.id===id)||plansNow()[0]; return p.name.replace(/\s*\(.*\)/,'')+' '+R$(p.price_cents); };
+function planCards(sel){ const m=plansNow().find(x=>x.period==='month');
+  const save=p=>!m||p.period==='month'?'':p.period==='year'?`<span class="pill">Save ${R$(m.price_cents*12-p.price_cents)}</span>`:'<span class="pill">Pay once, use for life</span>';
+  return `<div class="plans">${plansNow().map(p=>`<button class="plan" data-plan="${p.id}" aria-pressed="${p.id===sel}"><span>${esc(p.name)}</span><b>${R$(p.price_cents)}</b><span class="note-text" style="margin:0">${perTxt(p)}</span>${save(p)}</button>`).join('')}</div>`; }
 function showAuth(screen,opts){ $('#auth').hidden=false; renderAuth(screen,opts||{}); }
 function hideAuth(){ $('#auth').hidden=true; }
 const brand=`<div class="brand"><span class="bubble-logo">K</span><b>Khuluma</b></div>`;
@@ -216,7 +223,7 @@ const fld=(id,label,type='text',extra='')=>`<div class="fld"><label for="${id}">
 const val=id=>($('#'+id)||{}).value?.trim()||'';
 function busy(btn,on,txt){ if(!btn) return; btn.disabled=on; if(on){ btn.dataset.t=btn.textContent; btn.textContent=txt||'Please wait…'; } else if(btn.dataset.t) btn.textContent=btn.dataset.t; }
 
-async function renderAuth(screen,o){
+async function renderAuth(screen,o={}){
   const body=$('#authBody'); const err='<p class="err" id="aErr" role="alert"></p>';
   const setErr=m=>{ $('#aErr').textContent=friendly(m); };
   if(screen==='welcome'){
@@ -251,11 +258,16 @@ async function renderAuth(screen,o){
       else renderAuth('checkEmail',{email:val('aEmail')}); };
   }
   if(screen==='signupParent'){
-    const days=(acct&&acct.trial_days)||14;
+    const days=(acct&&acct.trial_days)||7;
+    const sel=o.plan||LS.get('khuluma.cloud.plan','family_month');
     body.innerHTML=`${brand}<div class="card"><h1 style="font-size:1.4rem;margin:0 0 4px">Start your ${days}-day free trial</h1>
-      <p class="note-text" style="margin:0">No payment needed now. After the trial: ${planLine()}.</p>
+      <p class="note-text" style="margin:0">Choose your plan. The first ${days} days are free; your plan starts after that. You can change or cancel before the trial ends.</p>
+      ${planCards(sel)}
+      <p class="note-text" style="margin:10px 0 0"><b>${days} days free, then ${esc(pName(sel))}${(plansNow().find(x=>x.id===sel)||{}).period==='lifetime'?' once-off':(plansNow().find(x=>x.id===sel)||{}).period==='year'?' a year':' a month'}.</b></p>
       ${fld('aName','Your full name','text','autocomplete="name"')}${fld('aEmail','Email','email','autocomplete="email" inputmode="email"')}${fld('aPass','Password (at least 8 characters)','password','autocomplete="new-password"')}
       ${err}<div class="btns" style="margin-top:12px"><button class="btn primary" id="aGo">Create account</button><button class="linkbtn" id="aBack">Back</button></div></div>`;
+    LS.set('khuluma.cloud.plan',sel);
+    body.querySelectorAll('[data-plan]').forEach(b=>b.onclick=()=>{ const keep={n:val('aName'),e:val('aEmail'),p:$('#aPass').value}; renderAuth('signupParent',{plan:b.dataset.plan}).then(()=>{ $('#aName').value=keep.n; $('#aEmail').value=keep.e; $('#aPass').value=keep.p; }); });
     $('#aBack').onclick=()=>renderAuth('welcome');
     $('#aGo').onclick=async e=>{ if(!val('aName')) return setErr('Type your name.'); if($('#aPass').value.length<8) return setErr('Use a password of at least 8 characters.');
       busy(e.target,true); const r=await sb.auth.signUp({email:val('aEmail'),password:$('#aPass').value,options:{emailRedirectTo:SITE,data:{full_name:val('aName'),role:'parent'}}}); busy(e.target,false);
@@ -271,23 +283,27 @@ async function renderAuth(screen,o){
     $('#aGo').onclick=async e=>{ const n=val('aKid'); if(!n) return setErr('Type your child’s name.'); if(!$('#aConsent').checked) return setErr('Please tick the consent box first.');
       busy(e.target,true); const r=await sb.from('children').insert({display_name:n}).select('id').single(); busy(e.target,false);
       if(r.error) return setErr(r.error); LS.del('khuluma.cloud.newParent'); LS.set('khuluma.cloud.childDevice',true);
-      await loadMe(); await openChild(r.data.id,{replace:true,copyLocal:true}); };
+      const tr=await sb.rpc('start_trial',{cid:r.data.id,plan:LS.get('khuluma.cloud.plan','family_month')});
+      await loadMe(); await openChild(r.data.id,{replace:true,copyLocal:true});
+      if(!tr.error) toast('Your '+((acct&&acct.trial_days)||7)+'-day free trial has started.'); };
   }
   if(screen==='subscribe'){
     await loadMe(); const k=kid(); if(!k||!acct){ hideAuth(); return; }
-    const l=k.licence||{state:'none'}, canTrial=l.state==='none'&&!(acct.profile||{}).trial_used, days=acct.trial_days||14;
-    const sel=o.plan||((acct.plans||[])[1]||{}).id;
+    const l=k.licence||{state:'none'}, canTrial=l.state==='none'&&!(acct.profile||{}).trial_used, days=acct.trial_days||7;
+    const sel=o.plan||l.plan||LS.get('khuluma.cloud.plan','family_month');
     const per=p=>p.period==='month'?'per month':p.period==='year'?'per year':'once-off';
     const save=p=>{ const m=(acct.plans||[]).find(x=>x.period==='month'); if(!m||p.period==='month') return '';
       return p.period==='year'?`<span class="pill">Save ${R$(m.price_cents*12-p.price_cents)}</span>`:'<span class="pill">Pay once, use for life</span>'; };
     body.innerHTML=`${brand}<div class="card"><h1 style="font-size:1.4rem;margin:0 0 4px">${esc(k.name)}’s Khuluma</h1>
       <p class="note-text" style="margin:0">${l.state==='trial'?`Free trial until ${fmtD(l.ends)}.`:l.state==='active'?`Paid until ${fmtD(l.ends)}.`:l.state==='lifetime'?'Lifetime plan: nothing more to pay.':l.state==='grace'?'The subscription has ended. Renew within a few days to keep the full board.':l.state==='expired'?'The subscription has ended. Only the emergency words are open until it is renewed.':'Choose how to start.'}</p>
-      ${canTrial?`<button class="btn primary" id="aTrial" style="margin-top:12px;width:100%">Start ${days}-day free trial</button><p class="note-text" style="margin:8px 0 0;text-align:center">or choose a plan now</p>`:''}
-      <div class="plans">${(acct.plans||[]).map(p=>`<button class="plan" data-plan="${p.id}" aria-pressed="${p.id===sel}"><span>${esc(p.name)}</span><b>${R$(p.price_cents)}</b><span class="note-text" style="margin:0">${per(p)}</span>${save(p)}</button>`).join('')}</div>
-      ${err}<div class="btns" style="margin-top:12px"><button class="btn primary" id="aPay">Continue with ${esc(((acct.plans||[]).find(p=>p.id===sel)||{}).name||'plan')}</button><button class="linkbtn" id="aLater">Not now</button></div></div>`;
+      ${planCards(sel)}
+      ${err}<div class="btns" style="margin-top:12px">${canTrial?`<button class="btn primary" id="aTrial">Start ${days}-day free trial, then ${esc(pName(sel))}</button><button class="btn" id="aPay">Pay now instead</button>`:
+        l.state==='trial'?`<button class="btn primary" id="aKeep">Keep ${esc(pName(sel))} after the trial</button><button class="btn" id="aPay">Pay now</button>`:`<button class="btn primary" id="aPay">Continue with ${esc(pName(sel))}</button>`}<button class="linkbtn" id="aLater">Not now</button></div></div>`;
     body.querySelectorAll('[data-plan]').forEach(b=>b.onclick=()=>renderAuth('subscribe',{plan:b.dataset.plan}));
     $('#aLater').onclick=()=>{ hideAuth(); applyAccess(); };
-    if($('#aTrial')) $('#aTrial').onclick=async e=>{ busy(e.target,true); const r=await sb.rpc('start_trial',{cid:k.id}); busy(e.target,false);
+    if($('#aKeep')) $('#aKeep').onclick=async e=>{ busy(e.target,true); const r=await sb.rpc('choose_plan',{cid:k.id,plan:sel}); busy(e.target,false);
+      if(r.error) return setErr(r.error); await refreshAccess(); hideAuth(); toast('Plan saved: '+pName(sel)+' after the trial'); };
+    if($('#aTrial')) $('#aTrial').onclick=async e=>{ busy(e.target,true); const r=await sb.rpc('start_trial',{cid:k.id,plan:sel}); busy(e.target,false);
       if(r.error) return setErr(r.error); await refreshAccess(); hideAuth(); toast('Your free trial has started. Enjoy!'); };
     $('#aPay').onclick=()=>renderAuth('pay',{plan:sel});
   }
@@ -341,7 +357,7 @@ async function renderAuth(screen,o){
     const parent=iv.role==='parent';
     const consent=parent?`<label class="chk"><input type="checkbox" id="aConsent"><span>I am ${esc(iv.child)}’s parent or legal guardian. I agree that Khuluma may store ${esc(iv.child)}’s board, photos, recordings and how the board is used, so that the therapy team can set it up and follow progress. I can ask the therapist to remove this at any time.</span></label>`:'';
     const head=`<h1 style="font-size:1.4rem;margin:0 0 6px">${esc(iv.from)} invited you to ${esc(iv.child)}’s Khuluma board</h1>
-      <p class="note-text" style="margin:0">You are joining as ${parent?'a parent':'a therapist on the team'}. ${parent?'Sign in on '+esc(iv.child)+'’s iPad: you only need to do this once. Your therapist’s setup replaces the board on this device. Then start a 14-day free trial, or choose a plan: '+planLine()+'.':''}</p>`;
+      <p class="note-text" style="margin:0">You are joining as ${parent?'a parent':'a therapist on the team'}. ${parent?'Sign in on '+esc(iv.child)+'’s iPad: you only need to do this once. Your therapist’s setup replaces the board on this device. Then choose a plan: the first 7 days are free. Plans: '+planLine()+'.':''}</p>`;
     const accept=async btn=>{ if(parent&&!$('#aConsent').checked) return setErr('Please tick the consent box first.');
       busy(btn,true); if(!(await registerDevice())){ busy(btn,false); return; }
       const a=await sb.rpc('accept_invite',{t:tok,consent:parent}); busy(btn,false); if(a.error) return setErr(a.error);

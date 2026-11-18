@@ -9,14 +9,14 @@ create table if not exists public.plans (
 insert into public.plans values
   ('family_month','Monthly',14900,'month',1,true,1),
   ('family_year','Yearly (2 months free)',149000,'year',12,true,2),
-  ('family_life','Lifetime (once-off)',447000,'lifetime',null,true,3)
+  ('family_life','Lifetime (once-off)',399900,'lifetime',null,true,3)
 on conflict (id) do nothing;
 alter table public.plans enable row level security;
 drop policy if exists "anyone reads plans" on public.plans;
 create policy "anyone reads plans" on public.plans for select to anon, authenticated using (active);
 
 create table if not exists public.app_settings (key text primary key, value text);
-insert into public.app_settings values ('trial_days','14'),('grace_days','7'),
+insert into public.app_settings values ('trial_days','7'),('grace_days','7'),
   ('eft_details','Pay by EFT and use your child’s name as reference. Bank details: ask Khuluma support.')
 on conflict (key) do nothing;
 alter table public.app_settings enable row level security;
@@ -184,8 +184,9 @@ create or replace function public.my_account() returns json language sql stable 
       where m.user_id = auth.uid() and public.this_device_ok()), '[]'::json)) $$;
 
 -- a parent starts the free trial for a child (one trial per parent account)
-create or replace function public.start_trial(cid uuid) returns json language plpgsql security definer set search_path = public as $$
-declare d int := coalesce((select value::int from public.app_settings where key='trial_days'),14);
+drop function if exists public.start_trial(uuid);
+create or replace function public.start_trial(cid uuid, plan text default 'family_month') returns json language plpgsql security definer set search_path = public as $$
+declare d int := coalesce((select value::int from public.app_settings where key='trial_days'),7);
 begin
   if not exists(select 1 from public.child_members where child_id = cid and user_id = auth.uid() and role = 'parent') or not public.this_device_ok() then
     raise exception 'Only the child''s parent can start the free trial' using errcode = '42501'; end if;
@@ -193,8 +194,9 @@ begin
     raise exception 'The free trial has already been used on this account. Choose a plan to continue.'; end if;
   if exists(select 1 from public.licences where child_id = cid and (trial_ends is not null or status in ('active','lifetime'))) then
     raise exception 'This child already had a trial or has a plan.'; end if;
-  insert into public.licences (child_id, status, trial_ends) values (cid, 'trial', now() + make_interval(days => d))
-    on conflict (child_id) do update set status = 'trial', trial_ends = now() + make_interval(days => d), updated_at = now();
+  if not exists(select 1 from public.plans where id = plan and active) then raise exception 'Unknown plan'; end if;
+  insert into public.licences (child_id, status, trial_ends, plan_id) values (cid, 'trial', now() + make_interval(days => d), plan)
+    on conflict (child_id) do update set status = 'trial', trial_ends = now() + make_interval(days => d), plan_id = plan, updated_at = now();
   update public.profiles set trial_used = true where id = auth.uid();
   return public.licence_state(cid);
 end $$;
@@ -207,6 +209,17 @@ begin
   insert into public.plan_requests (child_id, plan_id, reference, requested_by) values (cid, plan, left(ref,40), auth.uid());
 end $$;
 grant execute on function public.request_plan(uuid, text, text) to authenticated;
+
+-- the family picks or changes the plan that starts after the trial (charged automatically once card payments are connected)
+create or replace function public.choose_plan(cid uuid, plan text) returns json language plpgsql security definer set search_path = public as $$
+begin
+  if not exists(select 1 from public.child_members where child_id = cid and user_id = auth.uid() and role = 'parent') then
+    raise exception 'Only the child''s parent can choose the plan' using errcode = '42501'; end if;
+  if not exists(select 1 from public.plans where id = plan and active) then raise exception 'Unknown plan'; end if;
+  update public.licences set plan_id = plan, updated_at = now() where child_id = cid and status in ('none','trial');
+  return public.licence_state(cid);
+end $$;
+grant execute on function public.choose_plan(uuid, text) to authenticated;
 
 -- ---------- admin ----------
 create or replace function public.admin_overview() returns json language plpgsql stable security definer set search_path = public as $$
@@ -259,7 +272,7 @@ begin
   update public.licences set status = 'cancelled', paid_until = least(paid_until, now()), updated_at = now() where child_id = cid;
 end $$;
 
-grant execute on function public.my_account(), public.start_trial(uuid), public.licence_state(uuid), public.can_setup(uuid), public.is_admin(),
+grant execute on function public.my_account(), public.start_trial(uuid, text), public.licence_state(uuid), public.can_setup(uuid), public.is_admin(),
   public.admin_overview(), public.admin_review_therapist(uuid, boolean), public.admin_record_payment(uuid, text, text, text), public.admin_cancel(uuid)
   to authenticated;
 revoke insert, update, delete on public.licences, public.payments, public.plans, public.app_settings from authenticated, anon;
