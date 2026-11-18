@@ -61,3 +61,32 @@ Run `supabase/devices.sql` in the SQL Editor, after `schema.sql`. Each login the
 - Everyone sees their devices under **Account › Your devices**.
 - To change the numbers, go to **Table editor › app_limits** (`max_devices`, `max_device_swaps_30d`).
 - If someone is stuck, delete their rows in **Table editor › devices**.
+
+## Subscriptions, free trial and therapist approval
+Run `supabase/billing.sql` in the SQL Editor, after `devices.sql`.
+
+**Plans** (change prices in **Table editor › plans**, in cents):
+- Monthly: R149.
+- Yearly: R1,490 (2 months free).
+- Lifetime: R4,470, a once-off fee equal to 3 years on the yearly plan.
+
+**Licences:**
+- Each child needs their own licence, which the family pays for.
+- Families get a 14-day free trial, once per parent account.
+- After the subscription ends there are 7 days' grace. After that only the emergency words stay open (yes, no, help, stop, toilet, hungry, thirsty, tired, it hurts, I feel sick, Mom, more) and "Where it hurts" until the plan is renewed. A child is never left without a voice.
+
+**Parents** can sign up on their own ("I'm a parent: start a free trial") and add their child. Without a therapist, the parent sets up the whole board and can invite a therapist later. The first therapist who joins becomes the lead.
+
+**Therapists:**
+- Accounts are free.
+- A therapist gives their HPCSA number when signing up and can't add children until an admin approves them. Each HPCSA number can be used for one account only.
+- Therapists use a child's board in 60-minute sessions. A banner says "Therapist session", and a new session starts with one tap.
+- A child's everyday use at home always needs the family's own licence.
+
+**Admin** (the account with `is_admin` in profiles; billing.sql sets physiotiaan@gmail.com):
+- Go to **Account › Admin**.
+- Approve or reject therapists. Use the iRegister link to check their HPCSA number.
+- Record payments: EFT requests appear there and are switched on with **Mark paid**. You can also record any plan manually or cancel one.
+- Set your bank details for EFT in **Table editor › app_settings › eft_details**.
+
+**Card payments:** once you have a PayFast or Paystack merchant account, add `"payUrl"` to `src/config.json`. The payment provider's notification then calls `admin_record_payment` through a Supabase Edge Function. This part is still to be built.

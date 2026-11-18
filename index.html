@@ -464,8 +464,26 @@ textarea{font:inherit;width:100%;min-height:140px;border-radius:10px;border:1px 
 #app.ts-classic .yn .lbl{order:-1;font-weight:800;font-size:clamp(1.15rem,2.6vw,2rem)}
 #app.ts-classic .tile .cnt{left:9px;right:auto}
 #app.ts-classic .pg{border-radius:10px;color:#fff;background:linear-gradient(#7d98b6,#6884a5);box-shadow:0 3px 0 #4c6686}
+
+/* plan / session banner and locked emergency board */
+#planBar{position:fixed;left:50%;transform:translateX(-50%);bottom:max(10px,env(safe-area-inset-bottom,0px));z-index:40;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;
+  max-width:calc(100vw - 32px);background:var(--ink);color:var(--bg);padding:8px 10px 8px 16px;border-radius:999px;font:600 .9rem Lexend,system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+#planBar button{border:0;border-radius:999px;padding:7px 14px;font:700 .85rem Lexend,system-ui,sans-serif;background:var(--accent);color:#fff}
+#planBar.warn{background:#8a3b12}
+html.locked #nav .nv:not([data-id="pain"]):not(.hold):not([data-id="core"]):not([data-id="back"]){opacity:.35;pointer-events:none}
+.plans{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:12px}
+.plan{border:2px solid var(--line);border-radius:16px;padding:14px;background:var(--bg);text-align:left;font:inherit;color:var(--ink);display:grid;gap:4px}
+.plan b{font-size:1.4rem;font-family:Lexend,system-ui,sans-serif}
+.plan[aria-pressed="true"]{border-color:var(--accent);outline:3px solid color-mix(in srgb,var(--accent) 30%,transparent)}
+.plan .pill{justify-self:start}
+.adm td,.adm th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;font-size:.88rem}
+.adm{border-collapse:collapse;width:100%}
+.admwrap{overflow-x:auto}
+html.has-plan #app{height:calc(100% - 54px)}
+html.has-plan #planBar{bottom:max(6px,env(safe-area-inset-bottom,0px))}
 </style>
 
+<div id="planBar" hidden role="status"></div>
 <div id="app">
   <div id="partner" hidden aria-label="Message for the person opposite"></div>
   <div id="msgbar">
@@ -2774,8 +2792,16 @@ function libraryFolders(){
     ...TOPIC_ORDER.map(id=>folderHTML('list:'+id,TOPICS[id].e,TOPICS[id].n[L()],TOPICS[id].items.length)),
     ...(settings.vocab==='advanced'?ADV_ORDER.map(id=>folderHTML('list:'+id,TOPICS[id].e,TOPICS[id].n[L()],TOPICS[id].items.length)):[])];
 }
+// when a child's subscription has ended the board keeps a small emergency set, so the child is never without a voice
+let lockMode=false;
+const EMERG_EN=['yes','no','help','stop','I need the toilet',"I'm hungry","I'm thirsty","I'm tired",'It hurts','I feel sick','Mom','more'];
+function emergKeys(){ const seen=new Set(); return EMERG_EN.map(w=>Object.keys(ITEMS).find(k=>ITEMS[k].w[0]===w&&!seen.has(w)&&(seen.add(w),true))).filter(Boolean); }
+function setLock(on){ lockMode=!!on; document.documentElement.classList.toggle('locked',lockMode); if(lockMode&&view!=='pain') view='core'; renderBoard(); renderNav&&renderNav(); }
+function setBanner(html){ const b=$('#planBar'); if(!b) return; b.innerHTML=html||''; b.hidden=!html; if(!html) b.classList.remove('warn'); document.documentElement.classList.toggle('has-plan',!!html); }
 function renderBoard(){
   grid.hidden=true; painEl.hidden=true; sceneEl.hidden=true; kbdEl.hidden=true; $('#pager').hidden=true;
+  if(lockMode&&view!=='pain'){ grid.hidden=false; const ks=emergKeys(); const [c,r]=dims(); sizeGrid(c,r);
+    grid.innerHTML=ks.slice(0,c*r).map(k=>tileHTML(getItem(k))).join('')+'<div class="tile note"><span class="lbl" style="font-size:.85rem;font-weight:600;line-height:1.3">The full board opens again when the subscription is renewed.</span></div>'; return; }
   const v=view;
   if(v==='pain'){ painEl.hidden=false; renderPain(); return; }
   if(v.startsWith('scene:')){ sceneEl.hidden=false; renderScene(v.slice(6)); return; }
@@ -3567,7 +3593,7 @@ window.__khulumaApp={
     if(!keepLog) log=Object.assign(LOGDEF(),d.log||{});
     cleanLegacy(false); recByWord=null; msg=[]; save(true); ls.set('khuluma.log',log);
     await preloadMedia(); view=gaze()?'home':'core'; hist=[]; syncSettings(); renderAll(); applyMode(); },
-  usedMedia, idb, mediaURL, toast, setRole, openSettings, showTab, esc, renderAll, inClaudeFrame,
+  usedMedia, idb, mediaURL, toast, setRole, setLock, setBanner, openSettings, showTab, esc, renderAll, inClaudeFrame,
   freshLocal:()=>{ ls.set('khuluma.v1',DEF); }, LOGDEF };
 window.__khuluma={compose,ITEMS,getItem,go:v=>{go(v);},suggestions,fresh,get msg(){return msg;},set msg(v){msg=v;},get ov(){return ov;},get custom(){return custom;},refreshMsg};
 (async()=>{ renderAll(); applyMode(); wake(); await idb.open(); await preloadMedia(); renderAll(); applyMode(); purgeMedia();
@@ -3631,7 +3657,7 @@ async function start(){
   window.addEventListener('online',()=>{ online=true; push().then(()=>pull()); });
   window.addEventListener('offline',()=>{ online=false; setSync('Offline: changes are kept and sync later'); });
   document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&Date.now()-lastPull>30000) pull(); });
-  setInterval(()=>{ if(!document.hidden) pull(); },120000);
+  setInterval(()=>{ if(!document.hidden){ pull(); refreshAccess(); } },120000);
   await afterSignIn();
 }
 
@@ -3660,30 +3686,70 @@ async function afterSignIn(){
   if(!childId){
     if(kids.length===1) await openChild(kids[0].id,{replace:true});
     else if(kids.length>1) showAuth('pick');
+    else if(profile&&profile.role==='parent'){ showAuth('addChild'); return; }
     else { hideAuth(); A.openSettings('account'); }
-  } else { A.setRole(isTher()?'':'parent'); hideAuth(); await pull(); }
+  } else { A.setRole(uiRole()); hideAuth(); await pull(); applyAccess(); }
   renderAccount();
 }
 
+let acct=LS.get('khuluma.cloud.acct',null);       // plans, prices, trial length (from billing.sql)
 async function loadMe(){
   if(!session) return;
   const uid=session.user.id;
-  const p=await sb.from('profiles').select('*').eq('id',uid).maybeSingle(); if(p.data) profile=p.data;
-  const m=await sb.from('child_members').select('child_id,role,children(display_name)').eq('user_id',uid);
-  if(!m.error) kids=(m.data||[]).map(r=>({id:r.child_id,role:r.role,name:(r.children||{}).display_name||'Child'})).sort((a,b)=>a.name.localeCompare(b.name));
+  const a=await sb.rpc('my_account');
+  if(!a.error&&a.data){ acct=a.data; LS.set('khuluma.cloud.acct',acct); profile=Object.assign({},a.data.profile||{});
+    kids=(a.data.children||[]).map(c=>({id:c.id,role:c.role,name:c.name,has_therapist:c.has_therapist,licence:c.licence||{state:'none'}})); }
+  else {                                            // billing.sql not run yet: older data shape, no subscriptions
+    acct=null; const p=await sb.from('profiles').select('*').eq('id',uid).maybeSingle(); if(p.data) profile=p.data;
+    const m=await sb.from('child_members').select('child_id,role,children(display_name)').eq('user_id',uid);
+    if(!m.error) kids=(m.data||[]).map(r=>({id:r.child_id,role:r.role,name:(r.children||{}).display_name||'Child',has_therapist:true,licence:{state:'active'}})).sort((a,b)=>a.name.localeCompare(b.name)); }
   LS.set('khuluma.cloud.kids',kids);
 }
 if(!kids.length) kids=LS.get('khuluma.cloud.kids',[]);   // offline: remember whose board this is
-if(childId&&kid()&&kid().role==='parent') A.setRole('parent');   // a parent's device stays limited even offline
+// a parent sees only personal words when a therapist set up the board; a parent without a therapist sets up everything
+const uiRole=()=>{ const k=kid(); return !k||isTher()||!k.has_therapist?'':'parent'; };
+if(childId&&kid()) A.setRole(uiRole());
+
+// ---------- subscriptions and therapist sessions ----------
+const R$=c=>'R'+(c/100).toLocaleString('en-ZA',{minimumFractionDigits:0,maximumFractionDigits:2});
+const fmtD=d=>d?new Date(d).toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'}):'';
+const daysTo=d=>Math.max(0,Math.ceil((new Date(d)-Date.now())/86400000));
+let sessT=0, sessEnd=0;
+const SESSION_MIN=60;
+function applyAccess(){
+  clearInterval(sessT); A.setBanner('');
+  const k=kid(); if(!k||!acct){ A.setLock(false); return; }
+  if(isTher()){                                   // therapists use a child's board in sessions only
+    A.setLock(false);
+    const key='khuluma.cloud.sess.'+k.id; sessEnd=LS.get(key,0);
+    if(!sessEnd||sessEnd<Date.now()-6*3600000){ sessEnd=Date.now()+SESSION_MIN*60000; LS.set(key,sessEnd); }
+    const tick=()=>{ const left=Math.ceil((sessEnd-Date.now())/60000);
+      if(left<=0){ clearInterval(sessT); A.setLock(true);
+        A.setBanner(`Therapist session with ${esc(k.name)} has ended <button id="pbNew">Start a new session</button>`);
+        $('#pbNew').onclick=()=>{ LS.set(key,Date.now()+SESSION_MIN*60000); applyAccess(); }; return; }
+      A.setBanner(`Therapist session · ${esc(k.name)} · ${left} min left`); };
+    tick(); sessT=setInterval(tick,30000); return; }
+  const l=k.licence||{state:'none'};
+  if(l.state==='trial'){ A.setLock(false); const d=daysTo(l.ends);
+    A.setBanner(`Free trial: ${d} day${d===1?'':'s'} left <button id="pbSub">Choose a plan</button>`); $('#pbSub').onclick=()=>showAuth('subscribe'); return; }
+  if(l.state==='active'||l.state==='lifetime'){ A.setLock(false); return; }
+  if(l.state==='grace'){ A.setLock(false);
+    A.setBanner(`${esc(k.name)}’s subscription has ended <button id="pbSub">Renew</button>`); $('#planBar').classList.add('warn'); $('#pbSub').onclick=()=>showAuth('subscribe'); return; }
+  A.setLock(true); $('#planBar').classList.add('warn');
+  A.setBanner(`${l.state==='none'?'Start a free trial or choose a plan':'The subscription has ended'} to open ${esc(k.name)}’s full board <button id="pbSub">${l.state==='none'?'Start':'Renew'}</button>`);
+  $('#pbSub').onclick=()=>showAuth('subscribe');
+}
+async function refreshAccess(){ if(!sb||!session||!online) return applyAccess(); await loadMe(); applyAccess(); }
 
 function setChild(id){ childId=id||''; if(childId) LS.set('khuluma.cloud.child',childId); else LS.del('khuluma.cloud.child'); st=loadSt(childId); }
 
 async function openChild(id,{replace=false,copyLocal=false}={}){
   if(childId&&childId!==id) await push();
-  setChild(id); A.setRole(isTher()?'':'parent');
+  setChild(id); A.setRole(uiRole());
   if(copyLocal){ st.dirty={board:true}; st.version=-1; saveSt(); await push(); }
   await pull(true);
-  hideAuth(); renderAccount();
+  hideAuth(); renderAccount(); applyAccess();
+  const kk=kid(); if(kk&&acct&&kk.role==='parent'&&(kk.licence||{}).state==='none'){ showAuth('subscribe'); return; }
   const k=kid(); if(k&&!replace) toast('Showing '+k.name+'’s board');
 }
 
@@ -3736,6 +3802,8 @@ async function pull(force){
 }
 
 // ---------- sign-in screens ----------
+function planLine(){ const ps=(acct&&acct.plans)||[{name:'Monthly',price_cents:14900,period:'month'},{name:'Yearly',price_cents:149000,period:'year'},{name:'Lifetime',price_cents:447000,period:'lifetime'}];
+  return ps.map(p=>R$(p.price_cents)+(p.period==='month'?' a month':p.period==='year'?' a year':' once-off for life')).join(', or '); }
 function showAuth(screen,opts){ $('#auth').hidden=false; renderAuth(screen,opts||{}); }
 function hideAuth(){ $('#auth').hidden=true; }
 const brand=`<div class="brand"><span class="bubble-logo">K</span><b>Khuluma</b></div>`;
@@ -3758,29 +3826,84 @@ async function renderAuth(screen,o){
       <p class="note-text" style="margin:0">Therapists and parents sign in here. Parents: open the invite link your child’s therapist sent you.</p>
       ${fld('aEmail','Email','email','autocomplete="email" inputmode="email"')}${fld('aPass','Password','password','autocomplete="current-password"')}
       ${err}<div class="btns" style="margin-top:12px"><button class="btn primary" id="aGo">Sign in</button><button class="linkbtn" id="aForgot">Forgot password?</button></div></div>
-      <div class="card"><h2>New therapist</h2><p class="note-text" style="margin:0 0 10px">Create an account to set up your children’s boards and invite their parents.</p><button class="btn" id="aNew">Create a therapist account</button></div>
-      <button class="linkbtn" id="aLocal">Use Khuluma on this device without an account</button>`;
+      <div class="card"><h2>New to Khuluma?</h2>
+        <div class="btns"><button class="btn primary" id="aParent">I’m a parent: start a free trial</button><button class="btn" id="aNew">I’m a therapist</button></div>
+        <p class="note-text" style="margin:10px 0 0">Has your child’s therapist sent you an invite? Open the link in the invite instead.</p></div>`;
     $('#aGo').onclick=async e=>{ busy(e.target,true); const r=await sb.auth.signInWithPassword({email:val('aEmail'),password:$('#aPass').value}); busy(e.target,false);
       if(r.error) return setErr(r.error); session=r.data.session; localOnly=false; LS.del('khuluma.cloud.local'); await afterSignIn(); };
     $('#aPass').onkeydown=e=>{ if(e.key==='Enter') $('#aGo').click(); };
     $('#aForgot').onclick=async()=>{ const em=val('aEmail'); if(!em) return setErr('Type your email first.');
       const r=await sb.auth.resetPasswordForEmail(em,{redirectTo:SITE}); if(r.error) return setErr(r.error); setErr(''); $('#aErr').textContent='We emailed you a link to choose a new password.'; };
     $('#aNew').onclick=()=>renderAuth('signup');
-    $('#aLocal').onclick=()=>{ localOnly=true; LS.set('khuluma.cloud.local',true); hideAuth(); };
+    $('#aParent').onclick=()=>renderAuth('signupParent');
   }
   if(screen==='signup'){
     body.innerHTML=`${brand}<div class="card"><h1 style="font-size:1.4rem;margin:0 0 4px">Create a therapist account</h1>
       ${fld('aName','Your full name','text','autocomplete="name"')}
       <div class="fld"><label for="aProf">Profession</label><select id="aProf">${PROFESSIONS.map(p=>`<option>${p}</option>`).join('')}</select></div>
-      ${fld('aHp','HPCSA number (optional)','text','placeholder="e.g. PT0000000"')}
+      ${fld('aHp','HPCSA registration number','text','placeholder="e.g. PT0000000" autocapitalize="characters"')}
+      <p class="note-text" style="margin:6px 0 0">We check your number on the HPCSA register before your account is activated, usually within one working day.</p>
       ${fld('aEmail','Email','email','autocomplete="email" inputmode="email"')}${fld('aPass','Password (at least 8 characters)','password','autocomplete="new-password"')}
       ${err}<div class="btns" style="margin-top:12px"><button class="btn primary" id="aGo">Create account</button><button class="linkbtn" id="aBack">Back to sign in</button></div></div>`;
     $('#aBack').onclick=()=>renderAuth('welcome');
-    $('#aGo').onclick=async e=>{ if(!val('aName')) return setErr('Type your name.'); if($('#aPass').value.length<8) return setErr('Use a password of at least 8 characters.');
+    $('#aGo').onclick=async e=>{ if(!val('aName')) return setErr('Type your name.'); if(!/^[A-Za-z]{2,4}\s?\d{4,8}$/.test(val('aHp'))) return setErr('Type your HPCSA registration number, for example PT0109797.'); if($('#aPass').value.length<8) return setErr('Use a password of at least 8 characters.');
       busy(e.target,true); const r=await sb.auth.signUp({email:val('aEmail'),password:$('#aPass').value,options:{emailRedirectTo:SITE,data:{full_name:val('aName'),role:'therapist',profession:$('#aProf').value,hpcsa:val('aHp')}}}); busy(e.target,false);
       if(r.error) return setErr(r.error);
       if(r.data.session){ session=r.data.session; LS.del('khuluma.cloud.local'); await afterSignIn(); }
       else renderAuth('checkEmail',{email:val('aEmail')}); };
+  }
+  if(screen==='signupParent'){
+    const days=(acct&&acct.trial_days)||14;
+    body.innerHTML=`${brand}<div class="card"><h1 style="font-size:1.4rem;margin:0 0 4px">Start your ${days}-day free trial</h1>
+      <p class="note-text" style="margin:0">No payment needed now. After the trial: ${planLine()}.</p>
+      ${fld('aName','Your full name','text','autocomplete="name"')}${fld('aEmail','Email','email','autocomplete="email" inputmode="email"')}${fld('aPass','Password (at least 8 characters)','password','autocomplete="new-password"')}
+      ${err}<div class="btns" style="margin-top:12px"><button class="btn primary" id="aGo">Create account</button><button class="linkbtn" id="aBack">Back</button></div></div>`;
+    $('#aBack').onclick=()=>renderAuth('welcome');
+    $('#aGo').onclick=async e=>{ if(!val('aName')) return setErr('Type your name.'); if($('#aPass').value.length<8) return setErr('Use a password of at least 8 characters.');
+      busy(e.target,true); const r=await sb.auth.signUp({email:val('aEmail'),password:$('#aPass').value,options:{emailRedirectTo:SITE,data:{full_name:val('aName'),role:'parent'}}}); busy(e.target,false);
+      if(r.error) return setErr(r.error); LS.set('khuluma.cloud.newParent',true);
+      if(r.data.session){ session=r.data.session; await afterSignIn(); } else renderAuth('checkEmail',{email:val('aEmail')}); };
+  }
+  if(screen==='addChild'){
+    body.innerHTML=`${brand}<div class="card"><h1 style="font-size:1.4rem;margin:0 0 4px">Who will use Khuluma?</h1>
+      <p class="note-text" style="margin:0">Use your child’s first name or nickname only.</p>
+      ${fld('aKid','Child’s first name or nickname','text','maxlength="60"')}
+      <label class="chk"><input type="checkbox" id="aConsent"><span>I am this child’s parent or legal guardian. I agree that Khuluma may store the board, photos, recordings and how the board is used, to support my child’s communication.</span></label>
+      ${err}<div class="btns" style="margin-top:12px"><button class="btn primary" id="aGo">Continue</button></div></div>`;
+    $('#aGo').onclick=async e=>{ const n=val('aKid'); if(!n) return setErr('Type your child’s name.'); if(!$('#aConsent').checked) return setErr('Please tick the consent box first.');
+      busy(e.target,true); const r=await sb.from('children').insert({display_name:n}).select('id').single(); busy(e.target,false);
+      if(r.error) return setErr(r.error); LS.del('khuluma.cloud.newParent'); LS.set('khuluma.cloud.childDevice',true);
+      await loadMe(); await openChild(r.data.id,{replace:true,copyLocal:true}); };
+  }
+  if(screen==='subscribe'){
+    await loadMe(); const k=kid(); if(!k||!acct){ hideAuth(); return; }
+    const l=k.licence||{state:'none'}, canTrial=l.state==='none'&&!(acct.profile||{}).trial_used, days=acct.trial_days||14;
+    const sel=o.plan||((acct.plans||[])[1]||{}).id;
+    const per=p=>p.period==='month'?'per month':p.period==='year'?'per year':'once-off';
+    const save=p=>{ const m=(acct.plans||[]).find(x=>x.period==='month'); if(!m||p.period==='month') return '';
+      return p.period==='year'?`<span class="pill">Save ${R$(m.price_cents*12-p.price_cents)}</span>`:'<span class="pill">Pay once, use for life</span>'; };
+    body.innerHTML=`${brand}<div class="card"><h1 style="font-size:1.4rem;margin:0 0 4px">${esc(k.name)}’s Khuluma</h1>
+      <p class="note-text" style="margin:0">${l.state==='trial'?`Free trial until ${fmtD(l.ends)}.`:l.state==='active'?`Paid until ${fmtD(l.ends)}.`:l.state==='lifetime'?'Lifetime plan: nothing more to pay.':l.state==='grace'?'The subscription has ended. Renew within a few days to keep the full board.':l.state==='expired'?'The subscription has ended. Only the emergency words are open until it is renewed.':'Choose how to start.'}</p>
+      ${canTrial?`<button class="btn primary" id="aTrial" style="margin-top:12px;width:100%">Start ${days}-day free trial</button><p class="note-text" style="margin:8px 0 0;text-align:center">or choose a plan now</p>`:''}
+      <div class="plans">${(acct.plans||[]).map(p=>`<button class="plan" data-plan="${p.id}" aria-pressed="${p.id===sel}"><span>${esc(p.name)}</span><b>${R$(p.price_cents)}</b><span class="note-text" style="margin:0">${per(p)}</span>${save(p)}</button>`).join('')}</div>
+      ${err}<div class="btns" style="margin-top:12px"><button class="btn primary" id="aPay">Continue with ${esc(((acct.plans||[]).find(p=>p.id===sel)||{}).name||'plan')}</button><button class="linkbtn" id="aLater">Not now</button></div></div>`;
+    body.querySelectorAll('[data-plan]').forEach(b=>b.onclick=()=>renderAuth('subscribe',{plan:b.dataset.plan}));
+    $('#aLater').onclick=()=>{ hideAuth(); applyAccess(); };
+    if($('#aTrial')) $('#aTrial').onclick=async e=>{ busy(e.target,true); const r=await sb.rpc('start_trial',{cid:k.id}); busy(e.target,false);
+      if(r.error) return setErr(r.error); await refreshAccess(); hideAuth(); toast('Your free trial has started. Enjoy!'); };
+    $('#aPay').onclick=()=>renderAuth('pay',{plan:sel});
+  }
+  if(screen==='pay'){
+    const k=kid(), p=(acct.plans||[]).find(x=>x.id===o.plan); if(!k||!p){ hideAuth(); return; }
+    const ref=('KH-'+k.name.replace(/[^A-Za-z]/g,'').slice(0,8)+'-'+k.id.slice(0,4)).toUpperCase();
+    if(CFG.payUrl){ location.href=CFG.payUrl+'?child='+encodeURIComponent(k.id)+'&plan='+encodeURIComponent(p.id); return; }
+    const req=await sb.rpc('request_plan',{cid:k.id,plan:p.id,ref});
+    body.innerHTML=`${brand}<div class="card"><h1 style="font-size:1.4rem;margin:0 0 4px">${esc(p.name)}: ${R$(p.price_cents)}</h1>
+      <p class="note-text" style="margin:0">Card payments are coming soon. For now, please pay by EFT:</p>
+      <div class="invite-link" style="user-select:text">${esc(acct.eft||'').replace(/\n/g,'<br>')}<br><br><b>Amount:</b> ${R$(p.price_cents)}<br><b>Reference:</b> ${esc(ref)}</div>
+      <p class="note-text">${req.error?'':'We have your request. '}As soon as the payment reflects, ${esc(k.name)}’s plan is switched on, usually within one working day.${(k.licence||{}).state==='none'&&!(acct.profile||{}).trial_used?' You can start the free trial in the meantime.':''}</p>
+      <div class="btns"><button class="btn primary" id="aDone">Done</button><button class="linkbtn" id="aBack">Choose another plan</button></div></div>`;
+    $('#aDone').onclick=()=>{ hideAuth(); applyAccess(); }; $('#aBack').onclick=()=>renderAuth('subscribe',{plan:p.id});
   }
   if(screen==='checkEmail'){
     body.innerHTML=`${brand}<div class="card"><h1 style="font-size:1.4rem;margin:0 0 8px">Check your email</h1>
@@ -3820,7 +3943,7 @@ async function renderAuth(screen,o){
     const parent=iv.role==='parent';
     const consent=parent?`<label class="chk"><input type="checkbox" id="aConsent"><span>I am ${esc(iv.child)}’s parent or legal guardian. I agree that Khuluma may store ${esc(iv.child)}’s board, photos, recordings and how the board is used, so that the therapy team can set it up and follow progress. I can ask the therapist to remove this at any time.</span></label>`:'';
     const head=`<h1 style="font-size:1.4rem;margin:0 0 6px">${esc(iv.from)} invited you to ${esc(iv.child)}’s Khuluma board</h1>
-      <p class="note-text" style="margin:0">You are joining as ${parent?'a parent':'a therapist on the team'}. ${parent?'Sign in on '+esc(iv.child)+'’s iPad: you only need to do this once. Your therapist’s setup replaces the board on this device.':''}</p>`;
+      <p class="note-text" style="margin:0">You are joining as ${parent?'a parent':'a therapist on the team'}. ${parent?'Sign in on '+esc(iv.child)+'’s iPad: you only need to do this once. Your therapist’s setup replaces the board on this device. Then start a 14-day free trial, or choose a plan: '+planLine()+'.':''}</p>`;
     const accept=async btn=>{ if(parent&&!$('#aConsent').checked) return setErr('Please tick the consent box first.');
       busy(btn,true); if(!(await registerDevice())){ busy(btn,false); return; }
       const a=await sb.rpc('accept_invite',{t:tok,consent:parent}); busy(btn,false); if(a.error) return setErr(a.error);
@@ -3853,6 +3976,8 @@ async function renderAuth(screen,o){
 
 // ---------- Account tab ----------
 const roleName=r=>({lead:'Lead therapist',therapist:'Therapist',parent:'Parent'}[r]||r);
+function licLabel(l){ l=l||{state:'none'}; return {trial:'Free trial until '+fmtD(l.ends),active:'Paid until '+fmtD(l.ends),lifetime:'Lifetime plan',
+  grace:'Subscription ended: renew now',expired:'Subscription ended',none:'Waiting for the parent to subscribe'}[l.state]||''; }
 async function renderAccount(){
   roleNote(); const el=$('#acct'); if(!el) return;
   if(!configured){ el.innerHTML=`<div class="card"><h2>Accounts</h2><p class="note-text" style="margin:0">Therapist and parent logins are not switched on yet for this copy of Khuluma. The board works on this device without an account.</p></div>`; return; }
@@ -3868,23 +3993,34 @@ async function renderAccount(){
     <div class="card"><h2>This device</h2>${k?`<div class="kid on"><span class="who"><b>${esc(k.name)}’s board</b><span class="note-text" style="margin:0">You are ${roleName(k.role).toLowerCase()} · <span id="syncDot">${esc(syncMsg||'')}</span></span></span><span class="acts"><button class="btn" id="acSync">Sync now</button></span></div>`:
       `<p class="note-text" style="margin:0">No child’s board is open on this device yet.${ther?' Add a child below, or open one of yours.':''}</p>`}
     ${k&&isTher()?`<label class="chk"><input type="checkbox" id="acDev" ${LS.get('khuluma.cloud.childDevice',false)?'checked':''}><span>This is ${esc(k.name)}’s own device (it records how the board is used for Insights)</span></label>`:''}</div>`;
-  if(ther){
-    h+=`<div class="card"><h2>Your children</h2><div class="slist" style="margin-top:0">${kids.length?kids.map(c=>`<div class="kid ${c.id===childId?'on':''}"><span class="who"><b>${esc(c.name)}</b><span class="note-text" style="margin:0">${roleName(c.role)}</span></span>
+  if(ther&&acct&&profile&&!profile.approved){
+    h+=`<div class="card"><h2>Waiting for approval</h2><p class="note-text" style="margin:0">${profile.rejected?'We could not confirm your HPCSA registration. Please contact Khuluma support.':`Thank you! We are checking your HPCSA registration${profile.hpcsa?' ('+esc(profile.hpcsa)+')':''}. You can add children and accept team invites as soon as your account is approved, usually within one working day.`}</p></div>`;
+  }
+  if(ther&&(!acct||profile.approved)){
+    h+=`<div class="card"><h2>Your children</h2><div class="slist" style="margin-top:0">${kids.length?kids.map(c=>`<div class="kid ${c.id===childId?'on':''}"><span class="who"><b>${esc(c.name)}</b><span class="note-text" style="margin:0">${roleName(c.role)}${acct?' · '+esc(licLabel(c.licence)):''}</span></span>
         <span class="acts">${c.id===childId?'':`<button class="btn" data-open="${c.id}">Open on this device</button>`}<button class="btn" data-ren="${c.id}">Rename</button>${c.role==='lead'?`<button class="btn" data-del="${c.id}">Delete</button>`:''}<button class="btn" data-team="${c.id}">${openTeam===c.id?'Close team':'Team & invites'}</button></span></div>${renaming===c.id?`<div class="fld"><label for="acRen">New name for ${esc(c.name)}</label><input id="acRen" maxlength="60" value="${esc(c.name)}"></div><div class="btns" style="margin-top:8px"><button class="btn primary" id="acRenSave">Save name</button><button class="btn" id="acRenCancel">Cancel</button></div>`:''}`).join(''):'<div class="empty-state" style="display:block">No children yet.</div>'}</div>
       ${kid(openTeam)?`<h2 style="margin-top:18px">${esc(kid(openTeam).name)}’s team</h2><div id="teamBox"></div>`:''}
       <h2 style="margin-top:18px">Add a child</h2>
-      <p class="note-text" style="margin:0 0 4px">Use a first name or nickname only. You become the lead therapist and can invite the parents and other therapists.</p>
+      <p class="note-text" style="margin:0 0 4px">Use a first name or nickname only. You become the lead therapist and can invite the parents and other therapists.${acct?' The child’s family then starts a free trial or chooses a plan to use the board at home.':''}</p>
       <div class="fld"><label for="acKid">Child’s first name or nickname</label><input id="acKid" maxlength="60"></div>
       <label class="chk"><input type="checkbox" id="acCopy" checked><span>Start from the board that is on this device now</span></label>
       <p class="err" id="acErr"></p><div class="btns"><button class="btn primary" id="acAdd">Add child</button></div></div>`;
+  } else if(!ther&&acct){
+    h+=`<div class="card"><h2>${kids.length>1?'Your children':'Subscription'}</h2><div class="slist" style="margin-top:0">${kids.map(c=>`<div class="kid ${c.id===childId?'on':''}"><span class="who"><b>${esc(c.name)}</b><span class="note-text" style="margin:0">${esc(licLabel(c.licence))}</span></span>
+      <span class="acts">${c.id===childId?`<button class="btn primary" id="acPlan">${['active','lifetime'].includes((c.licence||{}).state)?'View plan':'Choose a plan'}</button>`:`<button class="btn" data-open="${c.id}">Open on this device</button>`}</span></div>`).join('')}</div>
+      <div class="btns" style="margin-top:10px"><button class="btn" id="acAnother">Add another child</button></div></div>`;
   } else if(kids.length>1){
     h+=`<div class="card"><h2>Your children</h2><div class="slist" style="margin-top:0">${kids.map(c=>`<div class="kid ${c.id===childId?'on':''}"><span class="who"><b>${esc(c.name)}</b></span>${c.id===childId?'':`<button class="btn" data-open="${c.id}">Open on this device</button>`}</div>`).join('')}</div></div>`;
   }
   h+=`<div class="card"><h2>Your devices</h2><div id="devBox"><p class="note-text">Loading…</p></div></div>`;
-  if(k&&!ther) h+=`<div class="card"><h2>${esc(k.name)}’s team</h2><div id="teamBox"></div><p class="note-text">The therapist sets up the board. You can add personal words, photos and recordings in Photos, voices &amp; scenes.</p></div>`;
+  if(k&&!ther) h+=`<div class="card"><h2>${esc(k.name)}’s team</h2><div id="teamBox"></div><p class="note-text">${k.has_therapist?'The therapist sets up the board. You can add personal words, photos and recordings in Photos, voices &amp; scenes.':'You can set up the whole board yourself, or invite your child’s therapist to help: they then set up the board.'}</p></div>`;
+  if(profile&&profile.is_admin) h+=`<div class="card"><h2>Admin</h2><div id="admBox"><p class="note-text">Loading…</p></div></div>`;
   el.innerHTML=h;
+  if($('#acPlan')) $('#acPlan').onclick=()=>{ $('#settings').hidden=true; showAuth('subscribe'); };
+  if($('#acAnother')) $('#acAnother').onclick=()=>{ $('#settings').hidden=true; showAuth('addChild'); };
+  if($('#admBox')) renderAdmin();
   $('#acName').onclick=()=>{ $('#acNameBox').hidden=!$('#acNameBox').hidden; };
-  $('#acNameSave').onclick=async e=>{ const n=val('acNameIn'); if(!n) return; busy(e.target,true); const r=await sb.from('profiles').update({full_name:n}).eq('id',session.user.id); busy(e.target,false);
+  $('#acNameSave').onclick=async e=>{ const n=val('acNameIn'); if(!n) return; busy(e.target,true); let r=await sb.rpc('set_my_name',{n}); if(r.error&&/function/i.test(r.error.message||'')) r=await sb.from('profiles').update({full_name:n}).eq('id',session.user.id); busy(e.target,false);
     if(r.error) return toast(friendly(r.error)); profile=Object.assign({},profile,{full_name:n}); toast('Name saved'); renderAccount(); };
   el.querySelectorAll('[data-ren]').forEach(b=>b.onclick=()=>{ renaming=renaming===b.dataset.ren?'':b.dataset.ren; renderAccount(); });
   if($('#acRenCancel')) $('#acRenCancel').onclick=()=>{ renaming=''; renderAccount(); };
@@ -3913,6 +4049,28 @@ async function renderAccount(){
   renderDevices();
 }
 
+async function renderAdmin(){
+  const box=$('#admBox'); if(!box) return; const r=await sb.rpc('admin_overview');
+  if(r.error){ box.innerHTML=`<p class="err">${esc(friendly(r.error))}</p>`; return; }
+  const d=r.data, plans=(acct&&acct.plans)||[];
+  const planSel=id=>`<select data-psel="${id}">${plans.map(p=>`<option value="${p.id}">${esc(p.name)} ${R$(p.price_cents)}</option>`).join('')}</select>`;
+  box.innerHTML=`<h2 style="margin-top:0">Therapists to approve (${d.pending.length})</h2>
+    ${d.pending.length?`<div class="admwrap"><table class="adm"><tr><th>Name</th><th>HPCSA</th><th>Email</th><th></th></tr>${d.pending.map(p=>`<tr><td>${esc(p.name)}<br><span class="note-text">${esc(p.profession||'')}</span></td><td><b>${esc(p.hpcsa||'none given')}</b><br><a href="https://hpcsaonline.custhelp.com/app/iregister" target="_blank" rel="noopener">Check on iRegister</a></td><td>${esc(p.email)}</td>
+      <td><button class="btn primary" data-appr="${p.id}">Approve</button> <button class="btn" data-rej="${p.id}">Reject</button></td></tr>`).join('')}</table></div>`:'<p class="note-text">Nobody is waiting.</p>'}
+    ${(d.requests||[]).length?`<h2>Payment requests (${d.requests.length})</h2><div class="admwrap"><table class="adm"><tr><th>Child</th><th>Plan</th><th>Reference</th><th>Asked</th><th></th></tr>${d.requests.map(q=>`<tr><td>${esc(q.child)}<br><span class="note-text">${esc(q.email||'')}</span></td><td>${esc(q.plan_name)}<br>${R$(q.price_cents)}</td><td>${esc(q.reference||'')}</td><td>${fmtD(q.created_at)}</td>
+      <td><button class="btn primary" data-paid="${q.child_id}" data-plan="${q.plan_id}" data-ref="${esc(q.reference||'')}">Mark paid</button></td></tr>`).join('')}</table></div>`:''}
+    <h2>Children and plans (${d.children.length})</h2>
+    <div class="admwrap"><table class="adm"><tr><th>Child</th><th>Family / therapist</th><th>Plan</th><th>Record a payment</th></tr>${d.children.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.parents||'no parent yet')}<br><span class="note-text">${esc(c.therapist||'no therapist')}</span></td><td>${esc(licLabel(c.licence))}</td>
+      <td>${planSel(c.id)} <input data-ref="${c.id}" placeholder="reference" style="width:110px;font:inherit;padding:6px;border-radius:8px;border:1px solid var(--line)"> <button class="btn" data-rec="${c.id}">Save</button>${['active','lifetime','trial'].includes(c.licence.state)?` <button class="btn" data-cancel="${c.id}">Cancel plan</button>`:''}</td></tr>`).join('')}</table></div>`;
+  const done=m=>{ toast(m); renderAdmin(); };
+  box.querySelectorAll('[data-appr]').forEach(b=>b.onclick=async()=>{ const x=await sb.rpc('admin_review_therapist',{uid:b.dataset.appr,approve:true}); x.error?toast(friendly(x.error)):done('Therapist approved'); });
+  box.querySelectorAll('[data-rej]').forEach(b=>b.onclick=async()=>{ if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to reject'; return; } const x=await sb.rpc('admin_review_therapist',{uid:b.dataset.rej,approve:false}); x.error?toast(friendly(x.error)):done('Therapist rejected'); });
+  box.querySelectorAll('[data-paid]').forEach(b=>b.onclick=async()=>{ const x=await sb.rpc('admin_record_payment',{cid:b.dataset.paid,plan:b.dataset.plan,method:'EFT',ref:b.dataset.ref}); x.error?toast(friendly(x.error)):done('Payment recorded: plan switched on'); });
+  box.querySelectorAll('[data-rec]').forEach(b=>b.onclick=async()=>{ const id=b.dataset.rec, plan=box.querySelector(`[data-psel="${id}"]`).value, ref=box.querySelector(`[data-ref="${id}"]`).value;
+    if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to confirm'; return; }
+    const x=await sb.rpc('admin_record_payment',{cid:id,plan,method:'EFT',ref}); x.error?toast(friendly(x.error)):done('Payment recorded'); });
+  box.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=async()=>{ if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to cancel'; return; } const x=await sb.rpc('admin_cancel',{cid:b.dataset.cancel}); x.error?toast(friendly(x.error)):done('Plan cancelled'); });
+}
 async function renderDevices(){
   const box=$('#devBox'); if(!box) return; const d=await myDevices();
   if(!d){ box.innerHTML='<p class="note-text" style="margin:0">Device limits are not switched on yet.</p>'; return; }
@@ -3923,7 +4081,7 @@ async function renderDevices(){
 }
 async function renderTeam(cid){
   const box=$('#teamBox'); if(!box) return; box.innerHTML='<p class="note-text">Loading…</p>';
-  const c=kid(cid), lead=c&&c.role==='lead', ther=c&&['lead','therapist'].includes(c.role), me=session.user.id;
+  const c=kid(cid), lead=c&&c.role==='lead', ther=c&&(['lead','therapist'].includes(c.role)||(c.role==='parent'&&!c.has_therapist)), me=session.user.id;
   const t=await sb.rpc('child_team',{cid});
   if(t.error){ box.innerHTML=`<p class="err">Could not load the team: ${esc(friendly(t.error))}</p>`; return; }
   let h=`<div class="slist">${(t.data||[]).map(p=>`<div><span><b>${esc(p.full_name)}</b> <span class="pill">${roleName(p.role)}</span>${p.profession?` <span class="note-text" style="margin:0">${esc(p.profession)}</span>`:''}</span>
@@ -3933,7 +4091,7 @@ async function renderTeam(cid){
     const pending=(inv.data||[]).filter(i=>new Date(i.expires_at)>new Date());
     h+=`<div class="card" style="margin-top:12px;background:var(--bg)"><h2>Invite someone to ${esc(c.name)}’s board</h2>
       <div class="row" style="border:0;grid-template-columns:minmax(0,1fr) auto auto;padding:0"><input id="ivEmail" type="email" placeholder="their email address" style="font:inherit;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);min-width:0">
-      <select id="ivRole" style="width:auto"><option value="parent">Parent</option><option value="therapist">Therapist</option></select><button class="btn primary" id="ivGo">Create invite</button></div>
+      <select id="ivRole" style="width:auto">${c.role==='parent'?'<option value="therapist">Therapist</option><option value="parent">Parent</option>':'<option value="parent">Parent</option><option value="therapist">Therapist</option>'}</select><button class="btn primary" id="ivGo">Create invite</button></div>
       <p class="err" id="ivErr"></p>${lastInvite&&lastInvite.cid===cid?inviteBox(lastInvite):''}
       ${pending.length?`<h2 style="margin-top:12px">Waiting to be accepted</h2><div class="slist" style="margin-top:0">${pending.map(i=>`<div><span>${esc(i.email)} <span class="pill">${roleName(i.role)}</span></span><span><button class="btn" data-link="${i.token}" data-em="${esc(i.email)}" data-ro="${i.role}">Show link</button> <button class="btn" data-cancel="${i.token}">Cancel</button></span></div>`).join('')}</div>`:''}</div>`;
   }

@@ -254,8 +254,16 @@ function libraryFolders(){
     ...TOPIC_ORDER.map(id=>folderHTML('list:'+id,TOPICS[id].e,TOPICS[id].n[L()],TOPICS[id].items.length)),
     ...(settings.vocab==='advanced'?ADV_ORDER.map(id=>folderHTML('list:'+id,TOPICS[id].e,TOPICS[id].n[L()],TOPICS[id].items.length)):[])];
 }
+// when a child's subscription has ended the board keeps a small emergency set, so the child is never without a voice
+let lockMode=false;
+const EMERG_EN=['yes','no','help','stop','I need the toilet',"I'm hungry","I'm thirsty","I'm tired",'It hurts','I feel sick','Mom','more'];
+function emergKeys(){ const seen=new Set(); return EMERG_EN.map(w=>Object.keys(ITEMS).find(k=>ITEMS[k].w[0]===w&&!seen.has(w)&&(seen.add(w),true))).filter(Boolean); }
+function setLock(on){ lockMode=!!on; document.documentElement.classList.toggle('locked',lockMode); if(lockMode&&view!=='pain') view='core'; renderBoard(); renderNav&&renderNav(); }
+function setBanner(html){ const b=$('#planBar'); if(!b) return; b.innerHTML=html||''; b.hidden=!html; if(!html) b.classList.remove('warn'); document.documentElement.classList.toggle('has-plan',!!html); }
 function renderBoard(){
   grid.hidden=true; painEl.hidden=true; sceneEl.hidden=true; kbdEl.hidden=true; $('#pager').hidden=true;
+  if(lockMode&&view!=='pain'){ grid.hidden=false; const ks=emergKeys(); const [c,r]=dims(); sizeGrid(c,r);
+    grid.innerHTML=ks.slice(0,c*r).map(k=>tileHTML(getItem(k))).join('')+'<div class="tile note"><span class="lbl" style="font-size:.85rem;font-weight:600;line-height:1.3">The full board opens again when the subscription is renewed.</span></div>'; return; }
   const v=view;
   if(v==='pain'){ painEl.hidden=false; renderPain(); return; }
   if(v.startsWith('scene:')){ sceneEl.hidden=false; renderScene(v.slice(6)); return; }
@@ -1047,7 +1055,7 @@ window.__khulumaApp={
     if(!keepLog) log=Object.assign(LOGDEF(),d.log||{});
     cleanLegacy(false); recByWord=null; msg=[]; save(true); ls.set('khuluma.log',log);
     await preloadMedia(); view=gaze()?'home':'core'; hist=[]; syncSettings(); renderAll(); applyMode(); },
-  usedMedia, idb, mediaURL, toast, setRole, openSettings, showTab, esc, renderAll, inClaudeFrame,
+  usedMedia, idb, mediaURL, toast, setRole, setLock, setBanner, openSettings, showTab, esc, renderAll, inClaudeFrame,
   freshLocal:()=>{ ls.set('khuluma.v1',DEF); }, LOGDEF };
 window.__khuluma={compose,ITEMS,getItem,go:v=>{go(v);},suggestions,fresh,get msg(){return msg;},set msg(v){msg=v;},get ov(){return ov;},get custom(){return custom;},refreshMsg};
 (async()=>{ renderAll(); applyMode(); wake(); await idb.open(); await preloadMedia(); renderAll(); applyMode(); purgeMedia();
