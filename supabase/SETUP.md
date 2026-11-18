@@ -90,3 +90,22 @@ Run `supabase/billing.sql` in the SQL Editor, after `devices.sql`.
 - Set your bank details for EFT in **Table editor › app_settings › eft_details**.
 
 **Card payments:** once you have a PayFast or Paystack merchant account, add `"payUrl"` to `src/config.json`. The payment provider's notification then calls `admin_record_payment` through a Supabase Edge Function. This part is still to be built.
+
+## Card payments with Paystack
+1. Run `supabase/paystack.sql` in the SQL Editor.
+2. In **Edge Functions › Secrets**, add `PAYSTACK_SECRET_KEY` with your Paystack secret key: `sk_test_…` while testing, later `sk_live_…`.
+3. Go to **Edge Functions › Deploy a new function › Via Editor**:
+   - Name it `paystack` and paste in `supabase/functions/paystack/index.ts`.
+   - Click **Deploy**.
+   - In the function's **Details**, switch **Enforce JWT verification** off.
+4. In Paystack, go to **Settings › API Keys & Webhooks** and set the **Webhook URL** to `https://nqwjfinmgpnpzqrtzzss.supabase.co/functions/v1/paystack`.
+5. Add `"pay": "paystack"` to `src/config.json`, rebuild and push. This switches the card step on in the app.
+6. Test with Paystack's test card: `4084 0840 8408 4081`, CVV 408, any future expiry date, PIN 0000, OTP 123456.
+
+**How payments work:**
+- **Monthly and yearly:** the trial starts, and the card is checked with R1, which is refunded at once. Paystack then charges the plan automatically when the trial ends, and after that every month or year.
+- **Lifetime:** R3,999 is charged once, straight away.
+- **Plan switching:** plans switch on by themselves when payments succeed, and every payment is recorded in Admin.
+- **Cancelling:** parents cancel under **Account**, and no further payments are taken.
+
+**Going live:** switch Paystack to Live mode and create the two plans again. In Supabase, change the secret to `sk_live_…`, and add the live plan codes as secrets `PAYSTACK_PLAN_MONTH` and `PAYSTACK_PLAN_YEAR`. Finally, set the live webhook URL in Paystack.

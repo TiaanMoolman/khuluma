@@ -79,7 +79,7 @@ async function afterSignIn(){
   if(inv){ showAuth('invite'); return; }
   if(!session){ A.setRole(''); if(!localOnly&&!childId) showAuth('welcome'); renderAccount(); return; }
   if(!(await registerDevice())) return;
-  await loadMe();
+  await loadMe(); if(PAY) await payReturn();
   if(childId&&!kid()){ if(kids.length||online){ toast('This device no longer has access to that child’s board.'); setChild(''); } }
   if(!childId){
     if(kids.length===1) await openChild(kids[0].id,{replace:true});
@@ -109,6 +109,16 @@ const uiRole=()=>{ const k=kid(); return !k||isTher()||!k.has_therapist?'':'pare
 if(childId&&kid()) A.setRole(uiRole());
 
 // ---------- subscriptions and therapist sessions ----------
+// ---------- card payments (Paystack, through the Supabase function "paystack") ----------
+const PAY=CFG.pay==='paystack';
+async function payCall(action,body){ const r=await fetch(CFG.supabaseUrl+'/functions/v1/paystack',{method:'POST',headers:{'Content-Type':'application/json',apikey:CFG.supabaseAnonKey,Authorization:'Bearer '+(session&&session.access_token||'')},body:JSON.stringify(Object.assign({action},body||{}))});
+  const j=await r.json().catch(()=>({error:'No answer from the payment service'})); if(!r.ok||j.error) throw new Error(j.error||'Payment service error'); return j; }
+async function goPay(cid,plan,mode){ try{ toast('Opening the secure Paystack payment page…'); const r=await payCall('start',{child_id:cid,plan_id:plan,mode}); location.href=r.url; }
+  catch(e){ toast(e.message); } }
+async function payReturn(){ const u=new URL(location.href), ref=u.searchParams.get('reference')||u.searchParams.get('trxref'); if(!u.searchParams.get('paid')||!ref) return;
+  ['paid','reference','trxref'].forEach(k=>u.searchParams.delete(k)); history.replaceState(null,'',u.pathname+u.search+u.hash);
+  try{ const r=await payCall('verify',{reference:ref}); toast(r.status==='success'?'Payment received. Thank you!':'The payment was not completed.'); }catch(e){ toast(e.message); }
+  await loadMe(); applyAccess(); }
 const R$=c=>'R'+(c/100).toLocaleString('en-ZA',{minimumFractionDigits:0,maximumFractionDigits:2});
 const fmtD=d=>d?new Date(d).toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'}):'';
 const daysTo=d=>Math.max(0,Math.ceil((new Date(d)-Date.now())/86400000));
@@ -128,6 +138,9 @@ function applyAccess(){
       A.setBanner(`Therapist session · ${esc(k.name)} · ${left} min left`); };
     tick(); sessT=setInterval(tick,30000); return; }
   const l=k.licence||{state:'none'};
+  if(l.state==='trial'&&PAY&&!l.card){ A.setLock(false); const d=daysTo(l.ends);
+    A.setBanner(`Free trial: ${d} day${d===1?'':'s'} left. Add your card so ${esc(k.name)}’s board keeps working <button id="pbSub">Add card</button>`);
+    $('#pbSub').onclick=()=>goPay(k.id,l.plan||'family_month','trial'); return; }
   if(l.state==='trial'){ A.setLock(false); const d=daysTo(l.ends);
     A.setBanner(`Free trial: ${d} day${d===1?'':'s'} left, then ${esc(pName(l.plan||'family_month'))} <button id="pbSub">Change plan</button>`); $('#pbSub').onclick=()=>showAuth('subscribe'); return; }
   if(l.state==='active'||l.state==='lifetime'){ A.setLock(false); return; }
@@ -283,9 +296,11 @@ async function renderAuth(screen,o={}){
     $('#aGo').onclick=async e=>{ const n=val('aKid'); if(!n) return setErr('Type your child’s name.'); if(!$('#aConsent').checked) return setErr('Please tick the consent box first.');
       busy(e.target,true); const r=await sb.from('children').insert({display_name:n}).select('id').single(); busy(e.target,false);
       if(r.error) return setErr(r.error); LS.del('khuluma.cloud.newParent'); LS.set('khuluma.cloud.childDevice',true);
-      const tr=await sb.rpc('start_trial',{cid:r.data.id,plan:LS.get('khuluma.cloud.plan','family_month')});
+      const plan=LS.get('khuluma.cloud.plan','family_month'), life=(plansNow().find(p=>p.id===plan)||{}).period==='lifetime';
+      if(life&&PAY){ await loadMe(); await openChild(r.data.id,{replace:true,copyLocal:true}); return goPay(r.data.id,plan,'now'); }
+      const tr=await sb.rpc('start_trial',{cid:r.data.id,plan:life?'family_month':plan});
       await loadMe(); await openChild(r.data.id,{replace:true,copyLocal:true});
-      if(!tr.error) toast('Your '+((acct&&acct.trial_days)||7)+'-day free trial has started.'); };
+      if(!tr.error){ if(PAY) return showAuth('card',{cid:r.data.id,plan}); toast('Your '+((acct&&acct.trial_days)||7)+'-day free trial has started.'); } };
   }
   if(screen==='subscribe'){
     await loadMe(); const k=kid(); if(!k||!acct){ hideAuth(); return; }
@@ -298,16 +313,26 @@ async function renderAuth(screen,o={}){
       <p class="note-text" style="margin:0">${l.state==='trial'?`Free trial until ${fmtD(l.ends)}.`:l.state==='active'?`Paid until ${fmtD(l.ends)}.`:l.state==='lifetime'?'Lifetime plan: nothing more to pay.':l.state==='grace'?'The subscription has ended. Renew within a few days to keep the full board.':l.state==='expired'?'The subscription has ended. Only the emergency words are open until it is renewed.':'Choose how to start.'}</p>
       ${planCards(sel)}
       ${err}<div class="btns" style="margin-top:12px">${canTrial?`<button class="btn primary" id="aTrial">Start ${days}-day free trial, then ${esc(pName(sel))}</button><button class="btn" id="aPay">Pay now instead</button>`:
-        l.state==='trial'?`<button class="btn primary" id="aKeep">Keep ${esc(pName(sel))} after the trial</button><button class="btn" id="aPay">Pay now</button>`:`<button class="btn primary" id="aPay">Continue with ${esc(pName(sel))}</button>`}<button class="linkbtn" id="aLater">Not now</button></div></div>`;
+        l.state==='trial'&&l.renews?`<button class="btn" id="aPay">Pay now instead</button>`:
+        l.state==='trial'?`<button class="btn primary" id="aKeep">${PAY?'Add card for '+esc(pName(sel)):'Keep '+esc(pName(sel))+' after the trial'}</button><button class="btn" id="aPay">Pay now</button>`:`<button class="btn primary" id="aPay">Continue with ${esc(pName(sel))}</button>`}<button class="linkbtn" id="aLater">Not now</button></div></div>`;
     body.querySelectorAll('[data-plan]').forEach(b=>b.onclick=()=>renderAuth('subscribe',{plan:b.dataset.plan}));
     $('#aLater').onclick=()=>{ hideAuth(); applyAccess(); };
     if($('#aKeep')) $('#aKeep').onclick=async e=>{ busy(e.target,true); const r=await sb.rpc('choose_plan',{cid:k.id,plan:sel}); busy(e.target,false);
-      if(r.error) return setErr(r.error); await refreshAccess(); hideAuth(); toast('Plan saved: '+pName(sel)+' after the trial'); };
+      if(r.error) return setErr(r.error); if(PAY) return goPay(k.id,sel,'trial'); await refreshAccess(); hideAuth(); toast('Plan saved: '+pName(sel)+' after the trial'); };
     if($('#aTrial')) $('#aTrial').onclick=async e=>{ busy(e.target,true); const r=await sb.rpc('start_trial',{cid:k.id,plan:sel}); busy(e.target,false);
       if(r.error) return setErr(r.error); await refreshAccess(); hideAuth(); toast('Your free trial has started. Enjoy!'); };
     $('#aPay').onclick=()=>renderAuth('pay',{plan:sel});
   }
+  if(screen==='card'){
+    const k=kid(o.cid)||kid(), p=plansNow().find(x=>x.id===o.plan)||plansNow()[0], l=(k&&k.licence)||{};
+    body.innerHTML=`${brand}<div class="card"><h1 style="font-size:1.4rem;margin:0 0 4px">Your free trial has started</h1>
+      <p class="note-text" style="margin:0">Add your card so ${esc(k?k.name:'your child')}’s board keeps working after the trial. Paystack checks the card with R1, which is refunded straight away.</p>
+      <div class="invite-link" style="user-select:text"><b>Today:</b> R0<br><b>${fmtD(l.ends)||'After 7 days'}:</b> ${R$(p.price_cents)}, then ${p.period==='year'?'every year':'every month'}<br>Cancel any time in Account.</div>
+      ${err}<div class="btns" style="margin-top:12px"><button class="btn primary" id="aCard">Add card securely with Paystack</button><button class="linkbtn" id="aLater">Later</button></div></div>`;
+    $('#aCard').onclick=()=>goPay(k.id,p.id,'trial'); $('#aLater').onclick=()=>{ hideAuth(); applyAccess(); };
+  }
   if(screen==='pay'){
+    if(PAY){ const kk=kid(); if(kk) return goPay(kk.id,o.plan,'now'); }
     const k=kid(), p=(acct.plans||[]).find(x=>x.id===o.plan); if(!k||!p){ hideAuth(); return; }
     const ref=('KH-'+k.name.replace(/[^A-Za-z]/g,'').slice(0,8)+'-'+k.id.slice(0,4)).toUpperCase();
     if(CFG.payUrl){ location.href=CFG.payUrl+'?child='+encodeURIComponent(k.id)+'&plan='+encodeURIComponent(p.id); return; }
@@ -422,7 +447,8 @@ async function renderAccount(){
   } else if(!ther&&acct){
     h+=`<div class="card"><h2>${kids.length>1?'Your children':'Subscription'}</h2><div class="slist" style="margin-top:0">${kids.map(c=>`<div class="kid ${c.id===childId?'on':''}"><span class="who"><b>${esc(c.name)}</b><span class="note-text" style="margin:0">${esc(licLabel(c.licence))}</span></span>
       <span class="acts">${c.id===childId?`<button class="btn primary" id="acPlan">${['active','lifetime'].includes((c.licence||{}).state)?'View plan':'Choose a plan'}</button>`:`<button class="btn" data-open="${c.id}">Open on this device</button>`}</span></div>`).join('')}</div>
-      <div class="btns" style="margin-top:10px"><button class="btn" id="acAnother">Add another child</button></div></div>`;
+      <div class="btns" style="margin-top:10px"><button class="btn" id="acAnother">Add another child</button>${k&&k.role==='parent'&&(k.licence||{}).renews?'<button class="btn" id="acCancel">Cancel subscription</button>':''}</div>
+      ${k&&k.role==='parent'&&(k.licence||{}).renews?'<p class="note-text" style="margin:8px 0 0">Your card is charged automatically. If you cancel, the board stays open until the end of the period you paid for.</p>':''}</div>`;
   } else if(kids.length>1){
     h+=`<div class="card"><h2>Your children</h2><div class="slist" style="margin-top:0">${kids.map(c=>`<div class="kid ${c.id===childId?'on':''}"><span class="who"><b>${esc(c.name)}</b></span>${c.id===childId?'':`<button class="btn" data-open="${c.id}">Open on this device</button>`}</div>`).join('')}</div></div>`;
   }
@@ -431,6 +457,8 @@ async function renderAccount(){
   if(profile&&profile.is_admin) h+=`<div class="card"><h2>Admin</h2><div id="admBox"><p class="note-text">Loading…</p></div></div>`;
   el.innerHTML=h;
   if($('#acPlan')) $('#acPlan').onclick=()=>{ $('#settings').hidden=true; showAuth('subscribe'); };
+  if($('#acCancel')) $('#acCancel').onclick=async e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to cancel'; return; }
+    try{ await payCall('cancel',{child_id:kid().id}); toast('Subscription cancelled. No more payments will be taken.'); }catch(x){ toast(x.message); } await loadMe(); renderAccount(); applyAccess(); };
   if($('#acAnother')) $('#acAnother').onclick=()=>{ $('#settings').hidden=true; showAuth('addChild'); };
   if($('#admBox')) renderAdmin();
   $('#acName').onclick=()=>{ $('#acNameBox').hidden=!$('#acNameBox').hidden; };
