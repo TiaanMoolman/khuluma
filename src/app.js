@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(
 const UI={speak:['Speak','Praat'],del:['Delete','Vee uit'],clear:['Clear','Maak skoon'],share:['Copy','Kopieer'],language:['Language','Taal'],
   rest:['Rest my eyes','Rus my oë'],resume:['Start again','Begin weer'],attn:['Come here','Kom hier'],goback:['Back','Terug'],
   core:['Core words','Kernwoorde'],quick:['QuickFires','Vinnig'],topics:['Topics','Onderwerpe'],keyboard:['Keyboard','Sleutelbord'],
-  pain:['Where it hurts','Waar dit seer is'],scenes:['Scenes','Tonele'],personal:['Personal','Persoonlik'],hold:['Hold for settings','Hou vir instellings'],
+  pain:['Where it hurts','Waar dit seer is'],yesno:['Yes / No','Ja / Nee'],scenes:['Scenes','Tonele'],personal:['Personal','Persoonlik'],hold:['Hold for settings','Hou vir instellings'],
   library:['Library','Biblioteek'],back:['My back','My rug'],pick:['Look at where it hurts','Kyk waar dit seer is'],space:['space','spasie'],addword:['Add word','Voeg by']};
 const ATTN=['Come here, please.','Kom asseblief hier.'];
 const SAMPLE=['Hello. I want water, please.','Hallo. Ek wil asseblief water hê.'];
@@ -136,7 +136,7 @@ const cloudChanged=k=>{ try{ window.khulumaCloud&&window.khulumaCloud.changed(k)
 function save(quiet){ls.set('khuluma.v1',settings);ls.set('khuluma.custom',custom);ls.set('khuluma.ov',ov);ls.set('khuluma.scenes',scenesC); if(!quiet) cloudChanged('board');}
 let logTimer=0; function saveLog(){clearTimeout(logTimer);logTimer=setTimeout(()=>{ ls.set('khuluma.log',log); cloudChanged('log'); },400);}
 
-const gaze=()=>settings.layout==='gaze'||settings.cvi;
+const gaze=()=>settings.layout==='gaze'||(settings.cvi&&settings.layout!=='yesno');
 let view=gaze()?'home':'core', hist=[], page=0, pages=1, msg=[], lastPType='mouse', editing=false, paused=false, painPart=null, lastAdd=0, typed='';
 
 // IndexedDB for photos and recordings
@@ -262,6 +262,9 @@ function setLock(on){ lockMode=!!on; document.documentElement.classList.toggle('
 function setBanner(html){ const b=$('#planBar'); if(!b) return; b.innerHTML=html||''; b.hidden=!html; if(!html) b.classList.remove('warn'); document.documentElement.classList.toggle('has-plan',!!html); }
 function renderBoard(){
   grid.hidden=true; painEl.hidden=true; sceneEl.hidden=true; kbdEl.hidden=true; $('#pager').hidden=true;
+  if(settings.layout==='yesno'&&!lockMode) view='yesno';
+  if(view==='yesno'&&!lockMode){ grid.hidden=false; grid.style.setProperty('--c',2); grid.style.setProperty('--r',1); grid.style.removeProperty('gap');
+    grid.innerHTML=['core:yes','core:no'].map(k=>{ const it=getItem(k); return `<button class="tile dwell ynb fk-${it.c}" data-act="yn1" data-id="${k}"><span class="pic">${picHTML(it)}</span><span class="lbl">${esc(word(it))}</span></button>`; }).join(''); return; }
   if(lockMode&&view!=='pain'){ grid.hidden=false; const ks=emergKeys(); const [c,r]=dims(); sizeGrid(c,r);
     grid.innerHTML=ks.slice(0,c*r).map(k=>tileHTML(getItem(k))).join('')+'<div class="tile note"><span class="lbl" style="font-size:.85rem;font-weight:600;line-height:1.3">The full board opens again when the subscription is renewed.</span></div>'; return; }
   const v=view;
@@ -290,7 +293,7 @@ function renderBoard(){
   if(v.startsWith('list:')){ const l=listOf(v.slice(5)); return layCells(l?visibleItems(l.items).map(it=>tileHTML(it)):[]); }
 }
 function renderNav(){
-  const nav=[['back','↩︎','goback'],['core','⭐','core'],['library','📚','library'],['quick','⚡','quick'],['keyboard','⌨️','keyboard'],['pain','🩹','pain'],['scenes','🖼️','scenes']];
+  const nav=[['back','↩︎','goback'],['core','⭐','core'],['yesno','👍','yesno'],['library','📚','library'],['quick','⚡','quick'],['keyboard','⌨️','keyboard'],['pain','🩹','pain'],['scenes','🖼️','scenes']];
   const sec=section();
   let h=nav.map(([id,e,k])=>`<button class="nv dwell" data-act="${id==='back'?'back':'go'}" data-id="${id}" aria-current="${id===sec}"><span class="i" aria-hidden="true">${e}</span><span>${esc(ui(k))}</span></button>`).join('');
   if(settings.restBtn&&(settings.mode==='dwell'||settings.mode==='ipad')) h+=`<button id="restNav" class="nv util dwell" data-act="pause" aria-pressed="${paused}"><span class="i" aria-hidden="true">${paused?'▶️':'😌'}</span><span>${esc(paused?ui('resume'):ui('rest'))}</span></button>`;
@@ -354,7 +357,7 @@ function renderUI(){
   document.documentElement.lang=LANGS[settings.lang].bcp;
   $('#langBtn').hidden=!settings.lang2;
   if(settings.lang2) $('#langCodes').textContent=`${LANGS[settings.lang].code} ⇄ ${LANGS[settings.lang2].code}`;
-  app.classList.toggle('gaze',gaze());
+  app.classList.toggle('gaze',gaze()&&settings.layout!=='yesno'); app.classList.toggle('yesno-only',settings.layout==='yesno');
   app.classList.toggle('cvi',!!settings.cvi); app.classList.toggle('ts-classic',settings.tileStyle==='classic'&&!settings.cvi); app.style.setProperty('--word-scale',(settings.wordSize||100)/100); document.body.classList.toggle('cvi-on',!!settings.cvi);
   app.classList.toggle('sil',!!settings.sil); ['gentle','spotlight'].forEach(m=>app.classList.toggle('motion-'+m,settings.cvi&&settings.motion===m));
   ['left','right','lower','centre'].forEach(f=>app.classList.toggle('field-'+f,settings.cvi&&settings.field===f));
@@ -527,6 +530,7 @@ function activate(el){
     case 'attn': sayText(ATTN[L()]); tone([660,880,1100,880,1100],.4,.16); document.body.classList.remove('attn'); void document.body.offsetWidth; document.body.classList.add('attn'); setTimeout(()=>document.body.classList.remove('attn'),1700); logSel('attn'); break;
     case 'pause': paused=!paused; renderUI(); renderNav(); startDwell(null); break;
     case 'go': go(id); break;
+    case 'yn1':{ const it=getItem(id); if(!it) break; logSel(id); sayItems([it]); el.classList.remove('said'); void el.offsetWidth; el.classList.add('said'); break; }
     case 'back': back(); break;
     case 'speak': if(typed) commitTyped(); if(msg.length){ sayItems(msg,true); log.spoken++; log.recent.unshift({t:Date.now(),s:sentence()}); log.recent=log.recent.slice(0,40); saveLog(); } break;
     case 'del': if(view==='keyboard'&&typed){ typed=typed.slice(0,-1); renderKeyboard(); break; } msg.pop(); if(Date.now()-lastAdd<3000){ log.undo++; saveLog(); lastAdd=0; } renderMsg(); break;
@@ -731,7 +735,7 @@ $('#vocab').addEventListener('change',e=>{ settings.vocab=e.target.value; save()
 $('#tileStyle').addEventListener('change',e=>{ settings.tileStyle=e.target.value; save(); });
 $('#tileSize').addEventListener('input',e=>{ settings.tileSize=+e.target.value; $('#tileSizeOut').textContent=settings.tileSize>=100?'Fill the space':settings.tileSize+'%'; save(); });
 $('#layout').addEventListener('change',e=>{ settings.layout=e.target.value; hist=[]; page=0;
-  if(gaze()){ view='home'; if(['8x6','10x6','6x5'].includes(settings.grid)) settings.grid='4x4'; } else { view='core'; }
+  if(settings.layout==='yesno'){ view='yesno'; } else if(gaze()){ view='home'; if(['8x6','10x6','6x5'].includes(settings.grid)) settings.grid='4x4'; } else { view='core'; }
   save(); syncSettings(); renderCoreMap(); });
 $('#hs').addEventListener('change',e=>{ settings.hs=e.target.value; save(); });
 BOOLS.forEach(k=>$('#'+k).addEventListener('change',e=>{ settings[k]=e.target.checked; save(); if(k==='grammar') renderGramDemo(); if(['sil','bubble','bLight','bHide'].includes(k)) renderPreview(); }));

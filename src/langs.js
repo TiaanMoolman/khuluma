@@ -654,7 +654,7 @@ const XU={speak:['Khuluma','Thetha','Bua'],del:['Susa','Cima','Hlakola'],clear:[
   quick:['Okusheshayo','Okukhawulezayo','Tse potlakileng'],topics:['Izihloko','Imixholo','Dihlooho'],keyboard:['Ikhibhodi','Ikhibhodi','Khiboto'],
   pain:['Kubuhlungu kuphi','Kubuhlungu phi','Ho bohloko kae'],scenes:['Izithombe','Imifanekiso','Ditshwantsho'],personal:['Okwami','Okwam','Tsa ka'],
   hold:['Bamba: izilungiselelo','Bamba: useto','Tshwara: disetting'],library:['Umtapo','Ithala','Laeborari'],back:['Umhlane wami','Umqolo wam','Mokokotlo wa ka'],
-  pick:['Bheka lapho kubuhlungu khona','Jonga apho kubuhlungu khona','Sheba moo ho bohloko'],space:['isikhala','isithuba','sebaka'],addword:['Faka igama','Yongeza igama','Kenya lentswe']};
+  pick:['Bheka lapho kubuhlungu khona','Jonga apho kubuhlungu khona','Sheba moo ho bohloko'],space:['isikhala','isithuba','sebaka'],addword:['Faka igama','Yongeza igama','Kenya lentswe'],yesno:['Yebo / Cha','Ewe / Hayi','E / Tjhe']};
 const XSAYS=['Uthi','Uthi','O re'];
 
 // ---------- fill every button's words ----------

@@ -480,3 +480,19 @@ html.has-plan #planBar{bottom:max(6px,env(safe-area-inset-bottom,0px))}
 #practice.cvi.field-lower .mgame{top:30%}
 #practice.cvi.field-centre .mgame{inset:6% 14%}
 @media (max-width:700px){ #practice .bar2 select{max-width:42vw} .ptabs{overflow-x:auto;max-width:100%} }
+
+/* Yes / No board */
+#grid .ynb{grid-template-rows:minmax(0,1fr) auto}
+#grid .ynb .sym{font-size:min(48cqh,46cqw)}
+#grid .ynb .lbl{font-size:calc(clamp(28px,min(16cqh,14cqw),110px) * var(--word-scale,1));font-weight:800;padding:4% 4% 6%}
+#grid .ynb[data-id="core:yes"]{--fk:#2e9d5b}
+#grid .ynb[data-id="core:no"]{--fk:#d0453a}
+#app:not(.cvi) #grid .ynb[data-id="core:yes"]{background:color-mix(in srgb,#2e9d5b 16%,var(--surface))}
+#app:not(.cvi) #grid .ynb[data-id="core:no"]{background:color-mix(in srgb,#d0453a 14%,var(--surface))}
+#grid .ynb.said{animation:ynsaid .7s ease}
+@keyframes ynsaid{30%{transform:scale(1.04);box-shadow:0 0 0 10px var(--fk)}}
+#app.yesno-only{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);grid-template-areas:"board"}
+#app.yesno-only #msgbar,#app.yesno-only #next,#app.yesno-only #partner,#app.yesno-only #yesno{display:none!important}
+#app.yesno-only #nav{position:fixed;left:max(8px,env(safe-area-inset-left,0px));bottom:max(8px,env(safe-area-inset-bottom,0px));z-index:5;display:block;width:auto;background:none}
+#app.yesno-only #nav .nv:not(.hold){display:none}
+#app.yesno-only #nav .nv.hold{opacity:.55;transform:scale(.8);transform-origin:left bottom}
